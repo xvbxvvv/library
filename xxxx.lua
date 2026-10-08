@@ -1123,7 +1123,7 @@
             end 
             
             function cfg.toggle_menu(bool) 
-                if cfg.tweening then 
+                if cfg.tweening or items["window"].Visible == bool then
                     return 
                 end 
 
@@ -1153,10 +1153,15 @@
                     end
                 end
 
-                library:connection(Tween.Completed, function()
+                if Tween then
+                    library:connection(Tween.Completed, function()
+                        cfg.tweening = false
+                        items["window"].Visible = bool
+                    end)
+                else
                     cfg.tweening = false
-                    items[ "window" ].Visible = bool
-                end)
+                    items["window"].Visible = bool
+                end
             end 
                 
             return setmetatable(cfg, library)
@@ -3310,16 +3315,16 @@
 			
 			for _, obj in outline:GetDescendants() do
                 if obj:IsA("Frame") or obj:IsA("ImageLabel") or obj:IsA("ImageButton") then
-                    library.fade(obj, "BackgroundTransparency", true)
+                    library:fade(obj, "BackgroundTransparency", true)
         
                 elseif obj:IsA("TextLabel") or obj:IsA("TextButton") then
-                    library.fade(obj, "TextTransparency", true)
+                    library:fade(obj, "TextTransparency", true)
                     
                 elseif obj:IsA("UIStroke") then
-                    library.fade(obj, "Transparency", true)
+                    library:fade(obj, "Transparency", true)
         
                 elseif obj:IsA("ScrollingFrame") then
-                    library.fade(obj, "ScrollBarImageTransparency", true)
+                    library:fade(obj, "ScrollBarImageTransparency", true)
                 end
             end
             print("fade1")
@@ -3342,16 +3347,16 @@
 					notifications.notifs[index] = nil
 					for _, obj in outline:GetDescendants() do
                         if obj:IsA("Frame") or obj:IsA("ImageLabel") or obj:IsA("ImageButton") then
-                            library.fade(obj, "BackgroundTransparency", false)
+                            library:fade(obj, "BackgroundTransparency", false)
                 
                         elseif obj:IsA("TextLabel") or obj:IsA("TextButton") then
-                            library.fade(obj, "TextTransparency", false)
+                            library:fade(obj, "TextTransparency", false)
                 
                         elseif obj:IsA("UIStroke") then
-                            library.fade(obj, "Transparency", false)
+                            library:fade(obj, "Transparency", false)
                 
                         elseif obj:IsA("ScrollingFrame") then
-                            library.fade(obj, "ScrollBarImageTransparency", false)
+                            library:fade(obj, "ScrollBarImageTransparency", false)
                         end
                     end
 					task.wait(1)
