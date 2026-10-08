@@ -480,18 +480,56 @@
             }
         }
 
-        library.theme = library.themes.dark
-        library.style = {
-            radius = 14,
-            shadow = 12,
-            padding = 10,
-            glow = true,
-            accent = library.theme.accent,
-            section_radius = 12,
-            tab_radius = 12,
-            slider_radius = 10,
-            dropdown_radius = 10
+        library.styles = {
+            premium = {
+                radius = 18,
+                shadow = 16,
+                padding = 12,
+                glow = true,
+                accent = rgb(255, 255, 255),
+                section_radius = 14,
+                tab_radius = 14,
+                slider_radius = 12,
+                dropdown_radius = 12
+            },
+            glass = {
+                radius = 20,
+                shadow = 18,
+                padding = 12,
+                glow = true,
+                accent = rgb(110, 220, 255),
+                section_radius = 16,
+                tab_radius = 10,
+                slider_radius = 10,
+                dropdown_radius = 10
+            },
+            cyber = {
+                radius = 16,
+                shadow = 14,
+                padding = 10,
+                glow = true,
+                accent = rgb(192, 124, 255),
+                section_radius = 12,
+                tab_radius = 12,
+                slider_radius = 8,
+                dropdown_radius = 10
+            },
+            minimal = {
+                radius = 12,
+                shadow = 10,
+                padding = 8,
+                glow = false,
+                accent = rgb(52, 110, 255),
+                section_radius = 10,
+                tab_radius = 10,
+                slider_radius = 8,
+                dropdown_radius = 8
+            }
         }
+
+        library.theme = library.themes.dark
+        library.style = library.styles.premium
+        library.style.accent = library.theme.accent
 
         function library:resolve_theme(theme)
             if type(theme) == "string" then
@@ -501,6 +539,16 @@
             end
 
             return library.theme or library.themes.dark
+        end
+
+        function library:resolve_style(style)
+            if type(style) == "string" then
+                return library.styles[style] or library.styles.premium
+            elseif type(style) == "table" then
+                return style
+            end
+
+            return library.style or library.styles.premium
         end
 
         function library:merge_theme(base, override)
@@ -521,6 +569,9 @@
         function library:set_theme(name)
             local theme = library.themes[name] or library.themes.dark
             library.theme = theme
+            if library.style then
+                library.style.accent = theme.accent
+            end
             return theme
         end
 
@@ -534,21 +585,48 @@
             local theme = library:merge_theme(library.themes.dark, custom or {})
             library.themes[name] = theme
             library.theme = theme
+            if library.style then
+                library.style.accent = theme.accent
+            end
             return theme
         end
 
         function library:apply_theme(theme)
             local palette = library:resolve_theme(theme)
             library.theme = palette
+            if library.style then
+                library.style.accent = palette.accent
+            end
             return palette
+        end
+
+        function library:apply_style(style)
+            local resolved = library:resolve_style(style)
+            library.style = resolved
+            if library.style and library.theme and library.style.accent == nil then
+                library.style.accent = library.theme.accent
+            end
+            return library.style
+        end
+
+        function library:set_style(name)
+            local style = library:resolve_style(name)
+            return library:apply_style(style)
         end
 
         function library:configure_style(style)
             local current = library.style or {}
-            for key, value in pairs(style or {}) do
+            local resolved = style
+            if type(style) == "string" then
+                resolved = library:resolve_style(style)
+            end
+            for key, value in pairs(resolved or {}) do
                 current[key] = value
             end
             library.style = current
+            if library.style and library.theme and library.style.accent == nil then
+                library.style.accent = library.theme.accent
+            end
             return library.style
         end
 
@@ -563,9 +641,30 @@
             function cfg.set(name)
                 local theme = cfg.themes[name] or cfg.themes.dark
                 library:set_theme(name)
-                library.style.accent = theme.accent
+                if library.style then
+                    library.style.accent = theme.accent
+                end
                 cfg.current = name
                 return theme
+            end
+
+            cfg.set(cfg.default)
+            return setmetatable(cfg, library)
+        end
+
+        function library:StyleManager(options)
+            local cfg = {
+                default = options and (options.default or options.Default or "premium") or "premium",
+                styles = options and (options.styles or library.styles) or library.styles,
+                current = nil,
+                items = {}
+            }
+
+            function cfg.set(name)
+                local style = cfg.styles[name] or cfg.styles.premium
+                library:apply_style(style)
+                cfg.current = name
+                return style
             end
 
             cfg.set(cfg.default)
