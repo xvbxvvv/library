@@ -1,127 +1,219 @@
 --[[
+================================================================================
     monolithhh.lua — Liquid Glass Edition
-    - V1 (normal) / V2 (large)
-    - Sub-tabs imbriqués
-    - Glassify : reflets + shadow + gradient + stroke
+================================================================================
+    Bibliothèque UI complète pour Roblox executors.
+
+    Features :
+        - Window (drag / resize / UIScale responsive)
+        - Tabs + Sub-tabs imbriqués
+        - Sections (left / right)
+        - Composants : Toggle, Slider, Dropdown, Label, Colorpicker,
+                       Textbox, Keybind, Button, List
+        - Watermark (FPS + Ping + draggable)
+        - Keybind HUD (panneau flottant)
+        - Mobile FAB (bouton flottant tactile)
+        - Quick settings (gear dans le header)
+        - Avatar + username + badge dans le header
+        - Notifications avancées (fade + progress bar)
+        - Save / Load config (JSON)
+        - 14 thèmes prédéfinis
+        - Glassify : reflets + shadow + gradient + stroke
+
+    Modes :
+        - v1 : 650x400
+        - v2 : 720x560
+
+    Utilisation :
+        local library, notifications = loadstring(...)()
+        local window = library:window({ name = "menu", mode = "v2" })
+        window.toggle_menu(true)
+================================================================================
 ]]
 
 -- ============================================================================
 -- SERVICES
 -- ============================================================================
-local uis = game:GetService("UserInputService")
-local players = game:GetService("Players")
-local ws = game:GetService("Workspace")
-local rs = game:GetService("ReplicatedStorage")
-local http_service = game:GetService("HttpService")
-local gui_service = game:GetService("GuiService")
-local coregui = game:GetService("CoreGui")
-local tween_service = game:GetService("TweenService")
+local uis              = game:GetService("UserInputService")
+local players          = game:GetService("Players")
+local ws               = game:GetService("Workspace")
+local rs               = game:GetService("ReplicatedStorage")
+local http_service     = game:GetService("HttpService")
+local gui_service      = game:GetService("GuiService")
+local coregui          = game:GetService("CoreGui")
+local tween_service    = game:GetService("TweenService")
+local run_service      = game:GetService("RunService")
+local stats            = game:GetService("Stats")
+local teleport_service = game:GetService("TeleportService")
+local lighting         = game:GetService("Lighting")
+local sound_service    = game:GetService("SoundService")
+local debris           = game:GetService("Debris")
 
-local camera = ws.CurrentCamera
-local lp = players.LocalPlayer
-local mouse = lp:GetMouse()
+-- ============================================================================
+-- GLOBAL REFS
+-- ============================================================================
+local camera     = ws.CurrentCamera
+local lp         = players.LocalPlayer
+local mouse      = lp:GetMouse()
 local gui_offset = gui_service:GetGuiInset().Y
 
-local vec2 = Vector2.new
-local dim2 = UDim2.new
-local dim = UDim.new
-local rect = Rect.new
+-- ============================================================================
+-- SHORTCUTS
+-- ============================================================================
+local vec2       = Vector2.new
+local vec3       = Vector3.new
+local dim2       = UDim2.new
+local dim        = UDim.new
+local rect       = Rect.new
+local cfr        = CFrame.new
 local dim_offset = UDim2.fromOffset
 
-local rgb = Color3.fromRGB
-local hex = Color3.fromHex
-local rgbseq = ColorSequence.new
-local rgbkey = ColorSequenceKeypoint.new
-local numseq = NumberSequence.new
-local numkey = NumberSequenceKeypoint.new
+local rgb        = Color3.fromRGB
+local color      = Color3.new
+local hex        = Color3.fromHex
+local hsv        = Color3.fromHSV
+local rgbseq     = ColorSequence.new
+local rgbkey     = ColorSequenceKeypoint.new
+local numseq     = NumberSequence.new
+local numkey     = NumberSequenceKeypoint.new
 
-local floor = math.floor
-local clamp = math.clamp
-local insert = table.insert
-local find = table.find
-local remove = table.remove
-local concat = table.concat
+local floor      = math.floor
+local ceil       = math.ceil
+local min        = math.min
+local max        = math.max
+local abs        = math.abs
+local clamp      = math.clamp
+local rad        = math.rad
+local sin        = math.sin
+local cos        = math.cos
+local random     = math.random
+local noise      = math.noise
+
+local insert     = table.insert
+local find       = table.find
+local remove     = table.remove
+local concat     = table.concat
+local sort       = table.sort
 
 -- ============================================================================
--- GLASS THEME
+-- THEME
 -- ============================================================================
 local glass_theme = {
-    -- surfaces
+    -- Couleurs de surfaces
     background   = rgb(18, 18, 24),
     surface      = rgb(34, 34, 44),
     surface_light= rgb(46, 46, 58),
     surface_dark = rgb(14, 14, 18),
 
-    -- accent
+    -- Accent
     accent       = rgb(130, 170, 255),
     accent_dim   = rgb(90, 130, 210),
+    accent_glow  = rgb(180, 210, 255),
 
-    -- text
+    -- Texte
     text         = rgb(240, 240, 250),
     text_dim     = rgb(172, 174, 190),
     text_muted   = rgb(112, 114, 130),
 
-    -- glass layers
+    -- Glass
     glass_top    = rgb(255, 255, 255),
     glass_bot    = rgb(0, 0, 0),
     glass_border = rgb(255, 255, 255),
+    glass_inner  = rgb(255, 255, 255),
 
-    -- radii
+    -- Radii
     corner_radius       = 12,
     corner_radius_small = 9,
     corner_radius_tiny  = 7,
 
-    -- anim
+    -- Animations
     tween_speed = 0.28,
     tween_style = Enum.EasingStyle.Quint,
 }
 
--- ============================================================================
--- LIBRARY INIT
--- ============================================================================
-getgenv().library = {
-    directory = "monolithhh",
-    folders = { "/fonts", "/configs" },
-    flags = {},
-    config_flags = {},
-    connections = {},
-    notifications = { notifs = {} },
-    current = nil,
-    theme = glass_theme,
+-- Thèmes prédéfinis (variantes de palette accent)
+local THEME_PRESETS = {
+    ["Default Blue"]   = rgb(130, 170, 255),
+    ["Matcha Pink"]    = rgb(255, 60, 140),
+    ["Matcha Green"]   = rgb(75, 235, 135),
+    ["Mint Emerald"]   = rgb(0, 245, 175),
+    ["Electric Cyan"]  = rgb(0, 215, 255),
+    ["Sakura Blossom"] = rgb(255, 165, 200),
+    ["Crimson Blood"]  = rgb(255, 55, 75),
+    ["Cyberpunk"]      = rgb(175, 90, 255),
+    ["Midnight Purple"]= rgb(145, 95, 240),
+    ["Sunset Amber"]   = rgb(255, 135, 45),
+    ["Pure Gold"]      = rgb(255, 205, 50),
+    ["Nord Arctic"]    = rgb(135, 215, 255),
+    ["Obsidian Mono"]  = rgb(226, 232, 240),
+    ["Tokyo Night"]    = rgb(122, 162, 247),
+    ["Dracula"]        = rgb(255, 121, 198),
 }
 
+-- ============================================================================
+-- LIBRARY STATE
+-- ============================================================================
+getgenv().library = {
+    directory    = "monolithhh",
+    folders      = { "/fonts", "/configs" },
+    flags        = {},
+    config_flags = {},
+    connections  = {},
+    notifications = { notifs = {} },
+    current      = nil,
+    theme        = glass_theme,
+    keybinds     = {},
+    elements     = {},
+}
+
+-- ============================================================================
+-- KEY MAP
+-- ============================================================================
 local keys = {
-    [Enum.KeyCode.LeftShift] = "LS",
-    [Enum.KeyCode.RightShift] = "RS",
-    [Enum.KeyCode.LeftControl] = "LC",
-    [Enum.KeyCode.RightControl] = "RC",
-    [Enum.KeyCode.Insert] = "INS",
-    [Enum.KeyCode.Backspace] = "BS",
-    [Enum.KeyCode.Return] = "Ent",
-    [Enum.KeyCode.LeftAlt] = "LA",
-    [Enum.KeyCode.RightAlt] = "RA",
-    [Enum.KeyCode.CapsLock] = "CAPS",
-    [Enum.KeyCode.One] = "1",
-    [Enum.KeyCode.Two] = "2",
-    [Enum.KeyCode.Three] = "3",
-    [Enum.KeyCode.Four] = "4",
-    [Enum.KeyCode.Five] = "5",
-    [Enum.KeyCode.Six] = "6",
-    [Enum.KeyCode.Seven] = "7",
-    [Enum.KeyCode.Eight] = "8",
-    [Enum.KeyCode.Nine] = "9",
-    [Enum.KeyCode.Zero] = "0",
-    [Enum.KeyCode.Minus] = "-",
-    [Enum.KeyCode.Equals] = "=",
+    [Enum.KeyCode.LeftShift]        = "LS",
+    [Enum.KeyCode.RightShift]       = "RS",
+    [Enum.KeyCode.LeftControl]      = "LC",
+    [Enum.KeyCode.RightControl]     = "RC",
+    [Enum.KeyCode.Insert]           = "INS",
+    [Enum.KeyCode.Backspace]        = "BS",
+    [Enum.KeyCode.Return]           = "Ent",
+    [Enum.KeyCode.LeftAlt]          = "LA",
+    [Enum.KeyCode.RightAlt]         = "RA",
+    [Enum.KeyCode.CapsLock]         = "CAPS",
+    [Enum.KeyCode.One]              = "1",
+    [Enum.KeyCode.Two]              = "2",
+    [Enum.KeyCode.Three]            = "3",
+    [Enum.KeyCode.Four]             = "4",
+    [Enum.KeyCode.Five]             = "5",
+    [Enum.KeyCode.Six]              = "6",
+    [Enum.KeyCode.Seven]            = "7",
+    [Enum.KeyCode.Eight]            = "8",
+    [Enum.KeyCode.Nine]             = "9",
+    [Enum.KeyCode.Zero]             = "0",
+    [Enum.KeyCode.Minus]            = "-",
+    [Enum.KeyCode.Equals]           = "=",
+    [Enum.KeyCode.LeftBracket]      = "[",
+    [Enum.KeyCode.RightBracket]     = "]",
+    [Enum.KeyCode.Semicolon]        = ";",
+    [Enum.KeyCode.Quote]            = "'",
+    [Enum.KeyCode.BackSlash]        = "\\",
+    [Enum.KeyCode.Comma]            = ",",
+    [Enum.KeyCode.Period]           = ".",
+    [Enum.KeyCode.Slash]            = "/",
+    [Enum.KeyCode.Asterisk]         = "*",
+    [Enum.KeyCode.Plus]             = "+",
+    [Enum.KeyCode.Backquote]        = "`",
+    [Enum.KeyCode.Escape]           = "ESC",
+    [Enum.KeyCode.Space]            = "SPC",
+    [Enum.KeyCode.Tab]              = "TAB",
     [Enum.UserInputType.MouseButton1] = "MB1",
     [Enum.UserInputType.MouseButton2] = "MB2",
     [Enum.UserInputType.MouseButton3] = "MB3",
-    [Enum.KeyCode.Escape] = "ESC",
-    [Enum.KeyCode.Space] = "SPC",
 }
 
 library.__index = library
 
+-- Création des dossiers
 pcall(function()
     for _, path in next, library.folders do
         if not isfolder(library.directory .. path) then
@@ -130,54 +222,71 @@ pcall(function()
     end
 end)
 
-local flags = library.flags
+local flags        = library.flags
 local config_flags = library.config_flags
 local notifications = library.notifications
 
 -- ============================================================================
--- FONT (with fallback)
+-- FONT LOADING (avec fallback)
 -- ============================================================================
 local font_ok = pcall(function()
-    local font_path = library.directory .. "/fonts/main.ttf"
-    local encoded_path = library.directory .. "/fonts/main_encoded.ttf"
-    if not isfile(font_path) then
-        writefile(font_path, game:HttpGet("https://github.com/f1nobe7650/Nebula/raw/refs/heads/main/Minecraftia-Regular.ttf"))
+    local fp = library.directory .. "/fonts/main.ttf"
+    local ep = library.directory .. "/fonts/main_encoded.ttf"
+
+    if not isfile(fp) then
+        writefile(fp, game:HttpGet("https://github.com/f1nobe7650/Nebula/raw/refs/heads/main/Minecraftia-Regular.ttf"))
     end
-    local minecraftia = {
+
+    local mf = {
         name = "Minecraftia",
-        faces = {{ name = "Regular", weight = 400, style = "normal", assetId = getcustomasset(font_path) }},
+        faces = {
+            {
+                name = "Regular",
+                weight = 400,
+                style = "normal",
+                assetId = getcustomasset(fp),
+            },
+        },
     }
-    if not isfile(encoded_path) then
-        writefile(encoded_path, http_service:JSONEncode(minecraftia))
+
+    if not isfile(ep) then
+        writefile(ep, http_service:JSONEncode(mf))
     end
-    library.font = Font.new(getcustomasset(encoded_path), Enum.FontWeight.Regular)
+
+    library.font = Font.new(getcustomasset(ep), Enum.FontWeight.Regular)
 end)
 
 if not font_ok or not library.font then
     library.font = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.Regular)
-    warn("[monolithhh] fallback font")
+    warn("[monolithhh] custom font failed, using SourceSansPro fallback")
 end
 
 -- ============================================================================
 -- CORE HELPERS
 -- ============================================================================
-function library:tween(obj, properties, easing_style, time)
+function library:tween(obj, props, style, time)
     local t = tween_service:Create(
         obj,
-        TweenInfo.new(time or glass_theme.tween_speed, easing_style or glass_theme.tween_style, Enum.EasingDirection.InOut),
-        properties
+        TweenInfo.new(time or glass_theme.tween_speed, style or glass_theme.tween_style, Enum.EasingDirection.InOut),
+        props
     )
     t:Play()
     return t
 end
 
 function library:get_transparency(obj)
-    if obj:IsA("Frame") then return { "BackgroundTransparency" }
-    elseif obj:IsA("TextLabel") or obj:IsA("TextButton") then return { "TextTransparency", "BackgroundTransparency" }
-    elseif obj:IsA("ImageLabel") or obj:IsA("ImageButton") then return { "BackgroundTransparency", "ImageTransparency" }
-    elseif obj:IsA("ScrollingFrame") then return { "BackgroundTransparency", "ScrollBarImageTransparency" }
-    elseif obj:IsA("TextBox") then return { "TextTransparency", "BackgroundTransparency" }
-    elseif obj:IsA("UIStroke") then return { "Transparency" }
+    if obj:IsA("Frame") then
+        return { "BackgroundTransparency" }
+    elseif obj:IsA("TextLabel") or obj:IsA("TextButton") then
+        return { "TextTransparency", "BackgroundTransparency" }
+    elseif obj:IsA("ImageLabel") or obj:IsA("ImageButton") then
+        return { "BackgroundTransparency", "ImageTransparency" }
+    elseif obj:IsA("ScrollingFrame") then
+        return { "BackgroundTransparency", "ScrollBarImageTransparency" }
+    elseif obj:IsA("TextBox") then
+        return { "TextTransparency", "BackgroundTransparency" }
+    elseif obj:IsA("UIStroke") then
+        return { "Transparency" }
     end
     return nil
 end
@@ -196,36 +305,40 @@ function library:fade(obj, prop, vis)
     return t
 end
 
-function library:create(instance, options)
-    local ins = Instance.new(instance)
-    for prop, value in pairs(options or {}) do
-        ins[prop] = value
+function library:create(cls, opts)
+    local i = Instance.new(cls)
+    for k, v in pairs(opts or {}) do
+        i[k] = v
     end
-    return ins
+    return i
 end
 
-function library:connection(signal, callback)
-    local c = signal:Connect(callback)
+function library:connection(sig, cb)
+    local c = sig:Connect(cb)
     insert(library.connections, c)
     return c
 end
 
-function library:mouse_in_frame(uiobject)
-    local y = uiobject.AbsolutePosition.Y <= mouse.Y and mouse.Y <= uiobject.AbsolutePosition.Y + uiobject.AbsoluteSize.Y
-    local x = uiobject.AbsolutePosition.X <= mouse.X and mouse.X <= uiobject.AbsolutePosition.X + uiobject.AbsoluteSize.X
+function library:mouse_in_frame(u)
+    local y = u.AbsolutePosition.Y <= mouse.Y and mouse.Y <= u.AbsolutePosition.Y + u.AbsoluteSize.Y
+    local x = u.AbsolutePosition.X <= mouse.X and mouse.X <= u.AbsolutePosition.X + u.AbsoluteSize.X
     return y and x
 end
 
-function library:round(number, float)
-    local m = 1 / (float or 1)
-    return floor(number * m + 0.5) / m
+function library:round(n, f)
+    local m = 1 / (f or 1)
+    return floor(n * m + 0.5) / m
 end
 
-function library:convert_enum(enum)
+function library:convert_enum(e)
     local parts = {}
-    for p in string.gmatch(enum, "[%w_]+") do insert(parts, p) end
+    for p in string.gmatch(e, "[%w_]+") do
+        insert(parts, p)
+    end
     local t = Enum
-    for i = 2, #parts do t = t[parts[i]] end
+    for i = 2, #parts do
+        t = t[parts[i]]
+    end
     return t
 end
 
@@ -237,8 +350,17 @@ function library:close_current_element(cfg)
     end
 end
 
+function library:set_accent(c)
+    glass_theme.accent = c
+    glass_theme.accent_dim = color(
+        math.max(0, c.R - 0.15),
+        math.max(0, c.G - 0.15),
+        math.max(0, c.B - 0.15)
+    )
+end
+
 -- ============================================================================
--- GLASSIFY — reflets + shadow + gradient + stroke
+-- GLASSIFY — applique reflets + shadow + gradient + stroke sur une frame
 -- ============================================================================
 function library:glassify(frame, radius, intensity)
     radius = radius or glass_theme.corner_radius
@@ -246,17 +368,19 @@ function library:glassify(frame, radius, intensity)
 
     frame.BorderSizePixel = 0
 
-    local existing = frame:FindFirstChildOfClass("UICorner")
-    if existing then
-        existing.CornerRadius = dim(0, radius)
+    -- Coins arrondis
+    local ex = frame:FindFirstChildOfClass("UICorner")
+    if ex then
+        ex.CornerRadius = dim(0, radius)
     else
         library:create("UICorner", { Parent = frame, CornerRadius = dim(0, radius) })
     end
 
-    local stroke = frame:FindFirstChild("GlassStroke")
-    if not stroke then
-        stroke = library:create("UIStroke", {
-            Parent = frame, Name = "GlassStroke",
+    -- Bord clair (stroke)
+    if not frame:FindFirstChild("GlassStroke") then
+        library:create("UIStroke", {
+            Parent = frame,
+            Name = "GlassStroke",
             Color = glass_theme.glass_border,
             Thickness = 1,
             Transparency = 0.78,
@@ -264,25 +388,28 @@ function library:glassify(frame, radius, intensity)
         })
     end
 
-    local grad = frame:FindFirstChild("GlassGrad")
-    if not grad then
-        grad = library:create("UIGradient", { Parent = frame, Name = "GlassGrad", Rotation = 90 })
+    -- Gradient du fond (clair haut, sombre bas)
+    local g = frame:FindFirstChild("GlassGrad")
+    if not g then
+        g = library:create("UIGradient", { Parent = frame, Name = "GlassGrad", Rotation = 90 })
     end
-    grad.Color = rgbseq {
-        rgbkey(0,   glass_theme.surface_light),
-        rgbkey(0.5, glass_theme.surface),
-        rgbkey(1,   glass_theme.surface_dark),
+
+    g.Color = rgbseq {
+        rgbkey(0,    glass_theme.surface_light),
+        rgbkey(0.5,  glass_theme.surface),
+        rgbkey(1,    glass_theme.surface_dark),
     }
-    grad.Transparency = numseq {
+    g.Transparency = numseq {
         numkey(0,   0.10 * intensity),
         numkey(0.5, 0.22 * intensity),
         numkey(1,   0.42 * intensity),
     }
 
-    local hi = frame:FindFirstChild("GlassHighlight")
-    if not hi then
-        hi = library:create("Frame", {
-            Parent = frame, Name = "GlassHighlight",
+    -- Highlight top (fine ligne blanche)
+    if not frame:FindFirstChild("GlassHighlight") then
+        local h = library:create("Frame", {
+            Parent = frame,
+            Name = "GlassHighlight",
             BackgroundColor3 = glass_theme.glass_top,
             BackgroundTransparency = 0.80,
             BorderSizePixel = 0,
@@ -290,13 +417,14 @@ function library:glassify(frame, radius, intensity)
             Position = dim2(0, 1, 0, 0),
             ZIndex = frame.ZIndex + 1,
         })
-        library:create("UICorner", { Parent = hi, CornerRadius = dim(0, 2) })
+        library:create("UICorner", { Parent = h, CornerRadius = dim(0, 2) })
     end
 
-    local sh = frame:FindFirstChild("GlassShadow")
-    if not sh then
-        sh = library:create("Frame", {
-            Parent = frame, Name = "GlassShadow",
+    -- Shadow bottom (fine ligne noire)
+    if not frame:FindFirstChild("GlassShadow") then
+        local s = library:create("Frame", {
+            Parent = frame,
+            Name = "GlassShadow",
             BackgroundColor3 = glass_theme.glass_bot,
             BackgroundTransparency = 0.6,
             BorderSizePixel = 0,
@@ -304,49 +432,50 @@ function library:glassify(frame, radius, intensity)
             Position = dim2(0, 1, 1, -1),
             ZIndex = frame.ZIndex + 1,
         })
-        library:create("UICorner", { Parent = sh, CornerRadius = dim(0, 2) })
+        library:create("UICorner", { Parent = s, CornerRadius = dim(0, 2) })
     end
-
-    return frame
 end
 
 -- ============================================================================
--- DRAGGIFY / RESIZIFY
+-- DRAGGIFY — rendre une frame déplaçable
 -- ============================================================================
-function library:draggify(frame)
-    local dragging = false
-    local start_size = frame.Position
-    local start
+function library:draggify(frame, handle)
+    handle = handle or frame
+    local dragging, start, start_pos = false, nil, frame.Position
 
-    frame.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+    handle.InputBegan:Connect(function(i)
+        if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
             dragging = true
-            start = input.Position
-            start_size = frame.Position
+            start = i.Position
+            start_pos = frame.Position
         end
     end)
-    frame.InputEnded:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+
+    handle.InputEnded:Connect(function(i)
+        if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
             dragging = false
         end
     end)
 
-    library:connection(uis.InputChanged, function(input)
-        if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
-            local vx = camera.ViewportSize.X
-            local vy = camera.ViewportSize.Y
+    library:connection(uis.InputChanged, function(i)
+        if dragging and (i.UserInputType == Enum.UserInputType.MouseMovement or i.UserInputType == Enum.UserInputType.Touch) then
+            local vx, vy = camera.ViewportSize.X, camera.ViewportSize.Y
             frame.Position = dim2(
-                0, clamp(start_size.X.Offset + (input.Position.X - start.X), 0, vx - frame.Size.X.Offset),
-                0, clamp(start_size.Y.Offset + (input.Position.Y - start.Y), 0, vy - frame.Size.Y.Offset)
+                0, clamp(start_pos.X.Offset + (i.Position.X - start.X), 0, vx - frame.Size.X.Offset),
+                0, clamp(start_pos.Y.Offset + (i.Position.Y - start.Y), 0, vy - frame.Size.Y.Offset)
             )
             library:close_current_element(nil)
         end
     end)
 end
 
+-- ============================================================================
+-- RESIZIFY — poignée de resize en bas-droite
+-- ============================================================================
 function library:resizify(frame)
     local grip = library:create("TextButton", {
-        Parent = frame, Name = "ResizeGrip",
+        Parent = frame,
+        Name = "ResizeGrip",
         Position = dim2(1, -12, 1, -12),
         Size = dim2(0, 12, 0, 12),
         BackgroundTransparency = 1,
@@ -355,32 +484,427 @@ function library:resizify(frame)
         ZIndex = 100,
     })
 
-    local resizing = false
-    local start_size
-    local start
-    local og_size = frame.Size
+    local rz, start_size, start, og = false, nil, nil, frame.Size
 
-    grip.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 then
-            resizing = true
-            start = input.Position
+    grip.InputBegan:Connect(function(i)
+        if i.UserInputType == Enum.UserInputType.MouseButton1 then
+            rz = true
+            start = i.Position
             start_size = frame.Size
         end
     end)
-    grip.InputEnded:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 then
-            resizing = false
+
+    grip.InputEnded:Connect(function(i)
+        if i.UserInputType == Enum.UserInputType.MouseButton1 then
+            rz = false
         end
     end)
 
-    library:connection(uis.InputChanged, function(input)
-        if resizing and input.UserInputType == Enum.UserInputType.MouseMovement then
+    library:connection(uis.InputChanged, function(i)
+        if rz and i.UserInputType == Enum.UserInputType.MouseMovement then
             frame.Size = dim2(
                 start_size.X.Scale,
-                clamp(start_size.X.Offset + (input.Position.X - start.X), og_size.X.Offset, camera.ViewportSize.X),
+                clamp(start_size.X.Offset + (i.Position.X - start.X), og.X.Offset, camera.ViewportSize.X),
                 start_size.Y.Scale,
-                clamp(start_size.Y.Offset + (input.Position.Y - start.Y), og_size.Y.Offset, camera.ViewportSize.Y)
+                clamp(start_size.Y.Offset + (i.Position.Y - start.Y), og.Y.Offset, camera.ViewportSize.Y)
             )
+        end
+    end)
+end
+
+-- ============================================================================
+-- WATERMARK — FPS + Ping + draggable
+-- ============================================================================
+function library:create_watermark(parent_screen, config)
+    config = config or {}
+    local name = config.name or "monolithhh"
+    local logo = config.logo or "rbxassetid://128155293790451"
+
+    local wm = library:create("Frame", {
+        Parent = parent_screen,
+        Name = "Watermark",
+        Size = dim2(0, 260, 0, 22),
+        Position = dim2(0, 16, 0, 16),
+        BackgroundColor3 = glass_theme.surface_dark,
+        BackgroundTransparency = 0.15,
+        BorderSizePixel = 0,
+        ZIndex = 999,
+    })
+    library:glassify(wm, 6, 1.2)
+
+    library:create("ImageLabel", {
+        Parent = wm,
+        Image = logo,
+        BackgroundTransparency = 1,
+        Position = dim2(0, 5, 0.5, -8),
+        Size = dim2(0, 16, 0, 16),
+    })
+
+    library:create("TextLabel", {
+        Parent = wm,
+        Name = "Title",
+        FontFace = library.font,
+        TextColor3 = glass_theme.text,
+        Text = string.upper(name),
+        BackgroundTransparency = 1,
+        Position = dim2(0, 26, 0, 0),
+        Size = dim2(0, 90, 1, 0),
+        TextXAlignment = Enum.TextXAlignment.Left,
+        TextSize = 10,
+    })
+
+    library:create("TextLabel", {
+        Parent = wm,
+        Text = "|",
+        FontFace = library.font,
+        TextColor3 = glass_theme.text_muted,
+        BackgroundTransparency = 1,
+        Position = dim2(0, 116, 0, 0),
+        Size = dim2(0, 8, 1, 0),
+        TextSize = 10,
+    })
+
+    local fps_lbl = library:create("TextLabel", {
+        Parent = wm,
+        Name = "FPS",
+        FontFace = library.font,
+        TextColor3 = glass_theme.text,
+        Text = "0 FPS",
+        BackgroundTransparency = 1,
+        Position = dim2(0, 128, 0, 0),
+        Size = dim2(0, 50, 1, 0),
+        TextXAlignment = Enum.TextXAlignment.Left,
+        TextSize = 10,
+    })
+
+    library:create("TextLabel", {
+        Parent = wm,
+        Text = "|",
+        FontFace = library.font,
+        TextColor3 = glass_theme.text_muted,
+        BackgroundTransparency = 1,
+        Position = dim2(0, 180, 0, 0),
+        Size = dim2(0, 8, 1, 0),
+        TextSize = 10,
+    })
+
+    local ping_lbl = library:create("TextLabel", {
+        Parent = wm,
+        Name = "Ping",
+        FontFace = library.font,
+        TextColor3 = glass_theme.text,
+        Text = "0ms",
+        BackgroundTransparency = 1,
+        Position = dim2(0, 192, 0, 0),
+        Size = dim2(0, 40, 1, 0),
+        TextXAlignment = Enum.TextXAlignment.Left,
+        TextSize = 10,
+    })
+
+    library:draggify(wm)
+
+    task.spawn(function()
+        local frame_count, last_time, fps = 0, tick(), 60
+        library:connection(run_service.RenderStepped, function()
+            frame_count = frame_count + 1
+            local now = tick()
+            if now - last_time >= 1 then
+                fps = floor(frame_count / (now - last_time))
+                frame_count, last_time = 0, now
+            end
+        end)
+        while wm.Parent do
+            local ping = 0
+            pcall(function()
+                ping = floor(stats.Network.ServerStatsItem["Data Ping"]:GetValue())
+            end)
+            fps_lbl.Text = fps .. " FPS"
+            ping_lbl.Text = ping .. "ms"
+            task.wait(0.5)
+        end
+    end)
+
+    return wm
+end
+
+-- ============================================================================
+-- KEYBIND HUD — panneau flottant listant les binds actifs
+-- ============================================================================
+function library:create_keybind_hud(parent_screen)
+    local hud = library:create("Frame", {
+        Parent = parent_screen,
+        Name = "KeybindHUD",
+        Size = dim2(0, 180, 0, 0),
+        Position = dim2(0, 20, 0, 60),
+        BackgroundColor3 = glass_theme.surface_dark,
+        BackgroundTransparency = 0.15,
+        BorderSizePixel = 0,
+        Visible = false,
+        AutomaticSize = Enum.AutomaticSize.Y,
+    })
+    library:glassify(hud, glass_theme.corner_radius_small, 1.2)
+
+    local header = library:create("Frame", {
+        Parent = hud,
+        Name = "Header",
+        Size = dim2(1, 0, 0, 24),
+        BackgroundTransparency = 1,
+    })
+
+    local dot = library:create("Frame", {
+        Parent = header,
+        Size = dim2(0, 6, 0, 6),
+        Position = dim2(0, 10, 0.5, -3),
+        BackgroundColor3 = glass_theme.accent,
+        BorderSizePixel = 0,
+    })
+    library:create("UICorner", { Parent = dot, CornerRadius = dim(1, 0) })
+
+    library:create("TextLabel", {
+        Parent = header,
+        Text = "KEYBINDS",
+        FontFace = library.font,
+        TextColor3 = glass_theme.text,
+        BackgroundTransparency = 1,
+        Position = dim2(0, 22, 0, 0),
+        Size = dim2(1, -30, 1, 0),
+        TextXAlignment = Enum.TextXAlignment.Left,
+        TextSize = 10,
+    })
+
+    local list = library:create("Frame", {
+        Parent = hud,
+        Name = "List",
+        Size = dim2(1, -16, 0, 0),
+        Position = dim2(0, 8, 0, 26),
+        BackgroundTransparency = 1,
+        AutomaticSize = Enum.AutomaticSize.Y,
+    })
+    library:create("UIListLayout", {
+        Parent = list,
+        Padding = dim(0, 3),
+        SortOrder = Enum.SortOrder.LayoutOrder,
+    })
+
+    library:draggify(hud, header)
+
+    function library:refresh_keybind_hud()
+        for _, c in ipairs(list:GetChildren()) do
+            if c:IsA("Frame") then
+                c:Destroy()
+            end
+        end
+
+        for flag_name, kb in pairs(library.keybinds) do
+            if kb.key then
+                local row = library:create("Frame", {
+                    Parent = list,
+                    Size = dim2(1, 0, 0, 14),
+                    BackgroundTransparency = 1,
+                })
+
+                local key_txt = keys[kb.key] or (typeof(kb.key) == "EnumItem" and kb.key.Name) or "?"
+
+                library:create("TextLabel", {
+                    Parent = row,
+                    FontFace = library.font,
+                    TextColor3 = glass_theme.accent,
+                    Text = "[ " .. key_txt .. " ]",
+                    BackgroundTransparency = 1,
+                    Size = dim2(0.4, 0, 1, 0),
+                    TextXAlignment = Enum.TextXAlignment.Left,
+                    TextSize = 10,
+                })
+
+                library:create("TextLabel", {
+                    Parent = row,
+                    FontFace = library.font,
+                    TextColor3 = glass_theme.text_dim,
+                    Text = kb.name or flag_name,
+                    BackgroundTransparency = 1,
+                    Position = dim2(0.4, 0, 0, 0),
+                    Size = dim2(0.6, 0, 1, 0),
+                    TextXAlignment = Enum.TextXAlignment.Left,
+                    TextSize = 10,
+                })
+            end
+        end
+    end
+
+    return hud
+end
+
+-- ============================================================================
+-- MOBILE FAB — bouton rond flottant draggable
+-- ============================================================================
+function library:create_mobile_fab(parent_screen, on_click)
+    local fab = library:create("TextButton", {
+        Parent = parent_screen,
+        Name = "MobileFAB",
+        Size = dim2(0, 44, 0, 44),
+        Position = dim2(1, -60, 0.5, -22),
+        BackgroundColor3 = glass_theme.surface_dark,
+        BackgroundTransparency = 0.1,
+        Text = "",
+        AutoButtonColor = false,
+        BorderSizePixel = 0,
+        ZIndex = 9999,
+        Visible = uis.TouchEnabled,
+    })
+    library:glassify(fab, 22, 1.3)
+
+    library:create("TextLabel", {
+        Parent = fab,
+        Text = "M",
+        FontFace = library.font,
+        TextColor3 = glass_theme.accent,
+        BackgroundTransparency = 1,
+        Size = dim2(1, 0, 1, 0),
+        TextSize = 20,
+    })
+
+    local dragging, start, start_pos = false, nil, fab.Position
+
+    fab.InputBegan:Connect(function(i)
+        if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
+            dragging = true
+            start = i.Position
+            start_pos = fab.Position
+        end
+    end)
+
+    uis.InputChanged:Connect(function(i)
+        if dragging and (i.UserInputType == Enum.UserInputType.MouseMovement or i.UserInputType == Enum.UserInputType.Touch) then
+            fab.Position = dim2(
+                0, start_pos.X.Offset + (i.Position.X - start.X),
+                0, start_pos.Y.Offset + (i.Position.Y - start.Y)
+            )
+        end
+    end)
+
+    uis.InputEnded:Connect(function(i)
+        if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
+            if dragging and (i.Position - start).Magnitude < 5 then
+                on_click()
+            end
+            dragging = false
+        end
+    end)
+
+    return fab
+end
+
+-- ============================================================================
+-- NOTIFICATIONS
+-- ============================================================================
+local notif = library.notifications
+
+function notif:refresh()
+    local y = 20
+    for _, v in pairs(notif.notifs) do
+        if v and v.Parent then
+            tween_service:Create(v, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {
+                Position = dim_offset(20, y),
+            }):Play()
+            y = y + v.AbsoluteSize.Y + 8
+        end
+    end
+end
+
+function notif:create(options)
+    options = options or {}
+    local title    = options.name or options.title or "Notification"
+    local content  = options.content or ""
+    local c        = options.color or glass_theme.accent
+    local duration = options.duration or 4
+
+    if not library.items then return end
+
+    local card = library:create("TextButton", {
+        Parent = library.items,
+        Name = "Notification",
+        Size = dim2(0, 260, 0, 0),
+        BackgroundColor3 = glass_theme.surface_dark,
+        BackgroundTransparency = 0.15,
+        Text = "",
+        AutoButtonColor = false,
+        BorderSizePixel = 0,
+        ClipsDescendants = true,
+    })
+    library:glassify(card, glass_theme.corner_radius_small, 1.2)
+
+    library:create("Frame", {
+        Parent = card,
+        Name = "AccentBar",
+        Size = dim2(0, 3, 1, -8),
+        Position = dim2(0, 4, 0, 4),
+        BackgroundColor3 = c,
+        BorderSizePixel = 0,
+    })
+
+    library:create("TextLabel", {
+        Parent = card,
+        Name = "Title",
+        FontFace = library.font,
+        TextColor3 = glass_theme.text,
+        Text = title,
+        BackgroundTransparency = 1,
+        Position = dim2(0, 14, 0, 6),
+        Size = dim2(1, -20, 0, 14),
+        TextXAlignment = Enum.TextXAlignment.Left,
+        TextSize = 10,
+    })
+
+    if content ~= "" then
+        library:create("TextLabel", {
+            Parent = card,
+            Name = "Content",
+            FontFace = library.font,
+            TextColor3 = glass_theme.text_dim,
+            Text = content,
+            BackgroundTransparency = 1,
+            TextWrapped = true,
+            Position = dim2(0, 14, 0, 22),
+            Size = dim2(1, -20, 0, 28),
+            TextXAlignment = Enum.TextXAlignment.Left,
+            TextYAlignment = Enum.TextYAlignment.Top,
+            TextSize = 10,
+        })
+    end
+
+    local prog = library:create("Frame", {
+        Parent = card,
+        Name = "Progress",
+        Size = dim2(1, 0, 0, 2),
+        Position = dim2(0, 0, 1, -2),
+        BackgroundColor3 = c,
+        BorderSizePixel = 0,
+    })
+
+    local target_h = (content ~= "") and 60 or 30
+    tween_service:Create(card, TweenInfo.new(0.3, Enum.EasingStyle.Quad), {
+        Size = dim2(0, 260, 0, target_h),
+    }):Play()
+    tween_service:Create(prog, TweenInfo.new(duration, Enum.EasingStyle.Linear), {
+        Size = dim2(0, 0, 0, 2),
+    }):Play()
+
+    local i = #notif.notifs + 1
+    notif.notifs[i] = card
+    notif:refresh()
+
+    task.delay(duration, function()
+        notif.notifs[i] = nil
+        if card and card.Parent then
+            local t = tween_service:Create(card, TweenInfo.new(0.25, Enum.EasingStyle.Quad), {
+                Size = dim2(0, 260, 0, 0),
+                BackgroundTransparency = 1,
+            })
+            t:Play()
+            t.Completed:Connect(function()
+                card:Destroy()
+                notif:refresh()
+            end)
         end
     end)
 end
@@ -397,28 +921,42 @@ function library:window(properties)
     properties = properties or {}
     local mode = properties.mode or properties.Mode or "v1"
     local size_cfg = SIZE_MODES[mode] or SIZE_MODES.v1
+    local user_name = (lp and lp.DisplayName) or "User"
+    local handle = "@" .. ((lp and lp.Name) or "user")
 
     local cfg = {
         name = properties.name or properties.Name or "monolithhh",
         size = properties.size or properties.Size or dim2(0, size_cfg.width, 0, size_cfg.height),
         logo = properties.logo or properties.Logo or "rbxassetid://128155293790451",
+        badge = properties.badge or properties.Badge or "",
         mode = mode,
         selected_tab = nil,
         items = {},
         tweening = false,
     }
 
+    -- ScreenGui principal
     library.items = library:create("ScreenGui", {
-        Parent = coregui, Name = "\0", Enabled = true,
-        ZIndexBehavior = Enum.ZIndexBehavior.Sibling, IgnoreGuiInset = true,
+        Parent = coregui,
+        Name = "\0",
+        Enabled = true,
+        ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
+        IgnoreGuiInset = true,
     })
+
     library.other = library:create("ScreenGui", {
-        Parent = coregui, Name = "\0", Enabled = false,
-        ZIndexBehavior = Enum.ZIndexBehavior.Sibling, IgnoreGuiInset = true,
+        Parent = coregui,
+        Name = "\0",
+        Enabled = false,
+        ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
+        IgnoreGuiInset = true,
     })
 
     local items = cfg.items
 
+    -- ========================================================================
+    -- WINDOW FRAME
+    -- ========================================================================
     items.window = library:create("Frame", {
         Parent = library.items,
         Name = "MainWindow",
@@ -430,9 +968,25 @@ function library:window(properties)
     })
     library:glassify(items.window, glass_theme.corner_radius, 1.4)
 
-    -- top bar
+    -- UIScale pour responsive
+    items.uiscale = library:create("UIScale", { Parent = items.window, Scale = 1 })
+
+    local function auto_fit()
+        local vp = camera.ViewportSize
+        local sx = (vp.X - 20) / cfg.size.X.Offset
+        local sy = (vp.Y - 20) / cfg.size.Y.Offset
+        items.uiscale.Scale = clamp(math.min(sx, sy, 1), 0.5, 1)
+        items.window.Position = dim2(0.5, -cfg.size.X.Offset / 2, 0.5, -cfg.size.Y.Offset / 2)
+    end
+    auto_fit()
+    camera:GetPropertyChangedSignal("ViewportSize"):Connect(auto_fit)
+
+    -- ========================================================================
+    -- HEADER / TOP BAR
+    -- ========================================================================
     items.top_frame = library:create("Frame", {
-        Parent = items.window, Name = "TopBar",
+        Parent = items.window,
+        Name = "TopBar",
         Size = dim2(1, 0, 0, 45),
         Position = dim2(0, 0, 0, 0),
         BackgroundColor3 = glass_theme.surface_light,
@@ -441,26 +995,143 @@ function library:window(properties)
     library:glassify(items.top_frame, glass_theme.corner_radius, 0.9)
 
     items.logo = library:create("ImageLabel", {
-        Parent = items.top_frame, Name = "Logo",
+        Parent = items.top_frame,
+        Name = "Logo",
         Image = cfg.logo,
         BackgroundTransparency = 1,
-        Position = dim2(0, 16, 0, 7),
+        Position = dim2(0, 12, 0, 7),
         Size = dim2(0, 32, 0, 32),
     })
 
     items.ui_title = library:create("TextLabel", {
-        Parent = items.top_frame, Name = "Title",
+        Parent = items.top_frame,
+        Name = "Title",
         FontFace = library.font,
         TextColor3 = glass_theme.text,
         Text = cfg.name,
         BackgroundTransparency = 1,
-        Size = dim2(1, 0, 1, 0),
-        TextSize = 26,
+        Position = dim2(0, 52, 0, 0),
+        Size = dim2(0, 150, 1, 0),
+        TextXAlignment = Enum.TextXAlignment.Left,
+        TextSize = 22,
     })
 
-    -- sidebar
+    -- Badge optionnel
+    if cfg.badge ~= "" then
+        local bg = library:create("Frame", {
+            Parent = items.top_frame,
+            Name = "Badge",
+            Size = dim2(0, 40, 0, 14),
+            Position = dim2(0, 52 + 90, 0.5, -7),
+            BackgroundColor3 = glass_theme.accent,
+            BackgroundTransparency = 0.85,
+            BorderSizePixel = 0,
+        })
+        library:create("UICorner", { Parent = bg, CornerRadius = dim(0, 4) })
+
+        library:create("TextLabel", {
+            Parent = bg,
+            Text = cfg.badge,
+            FontFace = library.font,
+            TextColor3 = glass_theme.accent,
+            BackgroundTransparency = 1,
+            Size = dim2(1, 0, 1, 0),
+            TextSize = 9,
+        })
+    end
+
+    -- User profile area (right)
+    items.user_frame = library:create("Frame", {
+        Parent = items.top_frame,
+        Name = "UserArea",
+        Size = dim2(0, 200, 1, 0),
+        Position = dim2(1, -215, 0, 0),
+        BackgroundTransparency = 1,
+    })
+
+    items.avatar = library:create("ImageLabel", {
+        Parent = items.user_frame,
+        Name = "Avatar",
+        Size = dim2(0, 26, 0, 26),
+        Position = dim2(1, -30, 0.5, -13),
+        BackgroundColor3 = glass_theme.surface_dark,
+        BackgroundTransparency = 0.1,
+        Image = "rbxassetid://0",
+        BorderSizePixel = 0,
+    })
+    library:create("UICorner", { Parent = items.avatar, CornerRadius = dim(1, 0) })
+    library:create("UIStroke", {
+        Parent = items.avatar,
+        Color = glass_theme.accent,
+        Transparency = 0.4,
+        Thickness = 1,
+    })
+
+    items.display = library:create("TextLabel", {
+        Parent = items.user_frame,
+        Name = "DisplayName",
+        FontFace = library.font,
+        TextColor3 = glass_theme.text,
+        Text = user_name,
+        BackgroundTransparency = 1,
+        Position = dim2(1, -180, 0, 4),
+        Size = dim2(0, 145, 0, 13),
+        TextXAlignment = Enum.TextXAlignment.Right,
+        TextSize = 10,
+    })
+
+    items.handle = library:create("TextLabel", {
+        Parent = items.user_frame,
+        Name = "Username",
+        FontFace = library.font,
+        TextColor3 = glass_theme.text_dim,
+        Text = handle,
+        BackgroundTransparency = 1,
+        Position = dim2(1, -180, 0, 18),
+        Size = dim2(0, 145, 0, 11),
+        TextXAlignment = Enum.TextXAlignment.Right,
+        TextSize = 9,
+    })
+
+    -- Charger avatar async
+    task.spawn(function()
+        pcall(function()
+            if lp and lp.UserId and lp.UserId > 0 then
+                local content = players:GetUserThumbnailAsync(
+                    lp.UserId,
+                    Enum.ThumbnailType.HeadShot,
+                    Enum.ThumbnailSize.Size48x48
+                )
+                if content then
+                    items.avatar.Image = content
+                end
+            end
+        end)
+    end)
+
+    -- Gear button
+    items.gear = library:create("TextButton", {
+        Parent = items.top_frame,
+        Name = "GearBtn",
+        Size = dim2(0, 22, 0, 22),
+        Position = dim2(1, -60, 0.5, -11),
+        BackgroundColor3 = glass_theme.surface,
+        BackgroundTransparency = 0.3,
+        Text = "⚙",
+        Font = Enum.Font.GothamBold,
+        TextColor3 = glass_theme.text_dim,
+        TextSize = 13,
+        AutoButtonColor = false,
+        BorderSizePixel = 0,
+    })
+    library:glassify(items.gear, 5, 0.7)
+
+    -- ========================================================================
+    -- SIDEBAR / TABS
+    -- ========================================================================
     items.inline = library:create("Frame", {
-        Parent = items.window, Name = "Sidebar",
+        Parent = items.window,
+        Name = "Sidebar",
         Position = dim2(0, 0, 0, 44),
         Size = dim2(0, 63, 1, -44),
         BackgroundColor3 = glass_theme.background,
@@ -469,24 +1140,34 @@ function library:window(properties)
     library:glassify(items.inline, glass_theme.corner_radius, 0.7)
 
     items.tab_button_holder = library:create("Frame", {
-        Parent = items.inline, Name = "TabHolder",
+        Parent = items.inline,
+        Name = "TabHolder",
         Position = dim2(0, 1, 0, 1),
         Size = dim2(1, -2, 1, -2),
         BackgroundColor3 = glass_theme.background,
         BackgroundTransparency = 0.6,
         BorderSizePixel = 0,
     })
-    library:create("UICorner", { Parent = items.tab_button_holder, CornerRadius = dim(0, glass_theme.corner_radius) })
-    library:create("UIPadding", { Parent = items.tab_button_holder, PaddingTop = dim(0, 37) })
+    library:create("UICorner", {
+        Parent = items.tab_button_holder,
+        CornerRadius = dim(0, glass_theme.corner_radius),
+    })
+    library:create("UIPadding", {
+        Parent = items.tab_button_holder,
+        PaddingTop = dim(0, 37),
+    })
     library:create("UIListLayout", {
         Parent = items.tab_button_holder,
         Padding = dim(0, 24),
         SortOrder = Enum.SortOrder.LayoutOrder,
     })
 
-    -- page holder
+    -- ========================================================================
+    -- PAGE HOLDER
+    -- ========================================================================
     items.page_holder = library:create("Frame", {
-        Parent = items.window, Name = "PageHolder",
+        Parent = items.window,
+        Name = "PageHolder",
         Position = dim2(0, 63, 0, 45),
         Size = dim2(1, -63, 1, -45),
         BackgroundColor3 = glass_theme.surface_dark,
@@ -497,11 +1178,150 @@ function library:window(properties)
     library:draggify(items.window)
     library:resizify(items.window)
 
+    -- ========================================================================
+    -- QUICK SETTINGS POPUP
+    -- ========================================================================
+    local popup = library:create("Frame", {
+        Parent = items.window,
+        Name = "QuickSettings",
+        Size = dim2(0, 200, 0, 0),
+        Position = dim2(1, -210, 0, 48),
+        BackgroundColor3 = glass_theme.surface_dark,
+        BackgroundTransparency = 0.15,
+        BorderSizePixel = 0,
+        Visible = false,
+        ClipsDescendants = true,
+        ZIndex = 500,
+    })
+    library:glassify(popup, glass_theme.corner_radius_small, 1.3)
+
+    local qp = library:create("Frame", {
+        Parent = popup,
+        Size = dim2(1, 0, 1, 0),
+        BackgroundTransparency = 1,
+        ZIndex = 501,
+    })
+    library:create("UIListLayout", {
+        Parent = qp,
+        Padding = dim(0, 6),
+        SortOrder = Enum.SortOrder.LayoutOrder,
+    })
+    library:create("UIPadding", {
+        Parent = qp,
+        PaddingTop = dim(0, 8),
+        PaddingBottom = dim(0, 8),
+        PaddingLeft = dim(0, 10),
+        PaddingRight = dim(0, 10),
+    })
+
+    library:create("TextLabel", {
+        Parent = qp,
+        Text = "QUICK HUD SETTINGS",
+        FontFace = library.font,
+        TextColor3 = glass_theme.text_muted,
+        BackgroundTransparency = 1,
+        Size = dim2(1, 0, 0, 14),
+        TextXAlignment = Enum.TextXAlignment.Left,
+        TextSize = 9,
+        ZIndex = 502,
+    })
+
+    local function quick_row(label, default, cb)
+        local row = library:create("Frame", {
+            Parent = qp,
+            Size = dim2(1, 0, 0, 20),
+            BackgroundTransparency = 1,
+            ZIndex = 502,
+        })
+
+        library:create("TextLabel", {
+            Parent = row,
+            Text = label,
+            FontFace = library.font,
+            TextColor3 = glass_theme.text,
+            BackgroundTransparency = 1,
+            Size = dim2(1, -40, 1, 0),
+            TextXAlignment = Enum.TextXAlignment.Left,
+            TextSize = 10,
+            ZIndex = 502,
+        })
+
+        local sw = library:create("TextButton", {
+            Parent = row,
+            Size = dim2(0, 32, 0, 16),
+            Position = dim2(1, -32, 0.5, -8),
+            BackgroundColor3 = default and glass_theme.accent or glass_theme.surface_dark,
+            Text = "",
+            AutoButtonColor = false,
+            BorderSizePixel = 0,
+            ZIndex = 502,
+        })
+        library:create("UICorner", { Parent = sw, CornerRadius = dim(1, 0) })
+
+        local dot = library:create("Frame", {
+            Parent = sw,
+            Size = dim2(0, 12, 0, 12),
+            Position = default and dim2(1, -14, 0.5, -6) or dim2(0, 2, 0.5, -6),
+            BackgroundColor3 = color(1, 1, 1),
+            BorderSizePixel = 0,
+            ZIndex = 503,
+        })
+        library:create("UICorner", { Parent = dot, CornerRadius = dim(1, 0) })
+
+        local state = default
+        sw.MouseButton1Click:Connect(function()
+            state = not state
+            library:tween(sw, { BackgroundColor3 = state and glass_theme.accent or glass_theme.surface_dark }, nil, 0.15)
+            library:tween(dot, { Position = state and dim2(1, -14, 0.5, -6) or dim2(0, 2, 0.5, -6) }, nil, 0.15)
+            cb(state)
+        end)
+    end
+
+    -- Création des HUD
+    items.watermark    = library:create_watermark(library.items, { name = cfg.name, logo = cfg.logo })
+    items.keybind_hud  = library:create_keybind_hud(library.items)
+    items.mobile_fab   = library:create_mobile_fab(library.items, function()
+        cfg.toggle_menu(not items.window.Visible)
+    end)
+
+    quick_row("Watermark HUD", true, function(state) items.watermark.Visible = state end)
+    quick_row("Keybinds HUD", false, function(state) items.keybind_hud.Visible = state end)
+    if uis.TouchEnabled then
+        quick_row("Mobile Button", true, function(state) items.mobile_fab.Visible = state end)
+    end
+
+    -- Toggle du popup
+    local popup_open = false
+    items.gear.MouseButton1Click:Connect(function()
+        popup_open = not popup_open
+        if popup_open then
+            popup.Visible = true
+            tween_service:Create(popup, TweenInfo.new(0.22, Enum.EasingStyle.Quart), {
+                Size = dim2(0, 200, 0, 20 + 26 * #qp:GetChildren()),
+            }):Play()
+            library:tween(items.gear, { TextColor3 = glass_theme.accent }, nil, 0.15)
+        else
+            local t = tween_service:Create(popup, TweenInfo.new(0.18, Enum.EasingStyle.Quart), {
+                Size = dim2(0, 200, 0, 0),
+            })
+            t:Play()
+            t.Completed:Connect(function()
+                if not popup_open then popup.Visible = false end
+            end)
+            library:tween(items.gear, { TextColor3 = glass_theme.text_dim }, nil, 0.15)
+        end
+    end)
+
+    -- ========================================================================
+    -- TOGGLE MENU (fade in/out)
+    -- ========================================================================
     function cfg.toggle_menu(bool)
         if cfg.tweening then return end
         cfg.tweening = true
 
-        if bool then items.window.Visible = true end
+        if bool then
+            items.window.Visible = true
+        end
 
         local children = items.window:GetDescendants()
         insert(children, items.window)
@@ -511,7 +1331,9 @@ function library:window(properties)
             local idx = library:get_transparency(obj)
             if idx then
                 if type(idx) == "table" then
-                    for _, p in ipairs(idx) do last = library:fade(obj, p, bool) end
+                    for _, p in ipairs(idx) do
+                        last = library:fade(obj, p, bool)
+                    end
                 else
                     last = library:fade(obj, idx, bool)
                 end
@@ -533,7 +1355,7 @@ function library:window(properties)
 end
 
 -- ============================================================================
--- TAB (with SubTab support)
+-- TAB (avec SubTab imbriqué)
 -- ============================================================================
 function library:Tab(properties)
     properties = properties or {}
@@ -547,7 +1369,7 @@ function library:Tab(properties)
 
     local items = cfg.items
 
-    -- tab button (sidebar)
+    -- Bouton sidebar
     items.tab_button = library:create("TextButton", {
         Parent = self.items.tab_button_holder,
         BackgroundTransparency = 1,
@@ -567,7 +1389,7 @@ function library:Tab(properties)
         Position = dim2(0.5, 0, 0, 0),
     })
 
-    -- main page
+    -- Page du tab
     items.tab = library:create("Frame", {
         Parent = library.items,
         BackgroundTransparency = 1,
@@ -576,9 +1398,10 @@ function library:Tab(properties)
         BorderSizePixel = 0,
     })
 
-    -- subtab bar (top of tab)
+    -- Barre de sub-tabs
     items.subtab_bar = library:create("Frame", {
-        Parent = items.tab, Name = "SubTabBar",
+        Parent = items.tab,
+        Name = "SubTabBar",
         Size = dim2(1, -24, 0, 26),
         Position = dim2(0, 12, 0, 10),
         BackgroundTransparency = 1,
@@ -593,9 +1416,10 @@ function library:Tab(properties)
         VerticalAlignment = Enum.VerticalAlignment.Center,
     })
 
-    -- separator under subtab bar
+    -- Séparateur sous la barre
     items.subtab_sep = library:create("Frame", {
-        Parent = items.tab, Name = "SubTabSep",
+        Parent = items.tab,
+        Name = "SubTabSep",
         Size = dim2(1, -24, 0, 1),
         Position = dim2(0, 12, 0, 42),
         BackgroundColor3 = glass_theme.glass_border,
@@ -604,20 +1428,18 @@ function library:Tab(properties)
         Visible = false,
     })
 
-    -- subtab content holder
+    -- Holder pour les sub-tabs
     items.subtab_holder = library:create("Frame", {
-        Parent = items.tab, Name = "SubTabHolder",
+        Parent = items.tab,
+        Name = "SubTabHolder",
         Size = dim2(1, 0, 1, 0),
-        Position = dim2(0, 0, 0, 0),
         BackgroundTransparency = 1,
         BorderSizePixel = 0,
     })
 
-    -- columns will be re-pointed to active subtab
-    items.left = nil
-    items.right = nil
-
-    -- subtab factory
+    -- ========================================================================
+    -- SUB-TAB FACTORY
+    -- ========================================================================
     function cfg:SubTab(name)
         local st = {
             name = name,
@@ -633,6 +1455,7 @@ function library:Tab(properties)
             BorderSizePixel = 0,
             Visible = false,
         })
+
         library:create("UIListLayout", {
             Parent = st_frame,
             FillDirection = Enum.FillDirection.Horizontal,
@@ -641,6 +1464,7 @@ function library:Tab(properties)
             SortOrder = Enum.SortOrder.LayoutOrder,
             VerticalFlex = Enum.UIFlexAlignment.Fill,
         })
+
         library:create("UIPadding", {
             Parent = st_frame,
             PaddingTop = dim(0, 50),
@@ -650,26 +1474,27 @@ function library:Tab(properties)
         })
 
         local left = library:create("Frame", {
-            Parent = st_frame, Name = "Left",
+            Parent = st_frame,
+            Name = "Left",
             BackgroundTransparency = 1,
             Size = dim2(0, 100, 0, 100),
         })
+
         local right = library:create("Frame", {
-            Parent = st_frame, Name = "Right",
+            Parent = st_frame,
+            Name = "Right",
             BackgroundTransparency = 1,
             Size = dim2(0, 100, 0, 100),
         })
 
         st.items.left = left
         st.items.right = right
-        st.items.elements_left = left
-        st.items.elements_right = right
         st.items.frame = st_frame
-        st.items.button = nil
+        st.frame = st_frame
 
         setmetatable(st, library)
 
-        -- subtab button in the bar
+        -- Bouton de subtab dans la barre
         local btn = library:create("TextButton", {
             Parent = items.subtab_bar,
             Name = "Btn_" .. name,
@@ -690,10 +1515,7 @@ function library:Tab(properties)
             PaddingLeft = dim(0, 10),
             PaddingRight = dim(0, 10),
         })
-        st.items.button = btn
-
         st.button = btn
-        st.frame = st_frame
 
         insert(cfg.subtabs, st)
 
@@ -703,7 +1525,8 @@ function library:Tab(properties)
 
         if #cfg.subtabs == 1 then
             cfg:SetActiveSubTab(name)
-        else
+        end
+        if #cfg.subtabs > 1 then
             items.subtab_bar.Visible = true
             items.subtab_sep.Visible = true
         end
@@ -713,34 +1536,31 @@ function library:Tab(properties)
 
     function cfg:SetActiveSubTab(name)
         cfg.active_subtab = name
-        items.subtab_bar.Visible = (#cfg.subtabs > 1)
-        items.subtab_sep.Visible = (#cfg.subtabs > 1)
-
         for _, st in ipairs(cfg.subtabs) do
-            local is_active = (st.name == name)
-            st.frame.Visible = is_active
+            local active = (st.name == name)
+            st.frame.Visible = active
             if st.button then
                 library:tween(st.button, {
-                    BackgroundTransparency = is_active and 0 or 0.5,
-                    TextColor3 = is_active and glass_theme.text or glass_theme.text_dim,
-                })
+                    BackgroundTransparency = active and 0 or 0.5,
+                    TextColor3 = active and glass_theme.text or glass_theme.text_dim,
+                }, nil, 0.15)
             end
-            if is_active then
+            if active then
                 items.left = st.items.left
                 items.right = st.items.right
             end
         end
     end
 
-    -- auto-create default subtab
+    -- Sub-tab par défaut
     cfg:SubTab("Main")
 
     function cfg.open_tab()
-        local selected = self.selected_tab
-        if selected then
-            selected[1].ImageColor3 = glass_theme.text_dim
-            selected[2].Parent = library.items
-            selected[2].Visible = false
+        local sel = self.selected_tab
+        if sel then
+            sel[1].ImageColor3 = glass_theme.text_dim
+            sel[2].Parent = library.items
+            sel[2].Visible = false
         end
         items.image.ImageColor3 = glass_theme.text
         items.tab.Parent = self.items.page_holder
@@ -770,27 +1590,27 @@ function library:Section(properties)
         side = properties.side or properties.Side or "left",
         default = properties.default or properties.Default or false,
         size = properties.size or properties.Size or 0.5,
-        icon = properties.icon or properties.Icon or "http://www.roblox.com/asset/?id=6022668898",
         items = {},
     }
 
     local parent = self.items[cfg.side]
     if not parent then
-        warn("[monolithhh] Section: no column for side=" .. tostring(cfg.side))
         parent = self.items.left or self.items.right
     end
 
     local items = cfg.items
 
     items.section_outline = library:create("Frame", {
-        Parent = parent, Name = "Section",
+        Parent = parent,
+        Name = "Section",
         BackgroundTransparency = 1,
         Size = dim2(1, 0, 1, 0),
         BorderSizePixel = 0,
     })
 
     items.section_shadow = library:create("Frame", {
-        Parent = items.section_outline, Name = "Glass",
+        Parent = items.section_outline,
+        Name = "Glass",
         Position = dim2(0, 1, 0, 1),
         Size = dim2(1, -2, 1, -2),
         BackgroundColor3 = glass_theme.surface,
@@ -799,7 +1619,8 @@ function library:Section(properties)
     library:glassify(items.section_shadow, glass_theme.corner_radius, 1.0)
 
     items.scrolling = library:create("ScrollingFrame", {
-        Parent = items.section_shadow, Name = "Scroll",
+        Parent = items.section_shadow,
+        Name = "Scroll",
         ScrollBarImageColor3 = glass_theme.accent,
         Active = true,
         AutomaticCanvasSize = Enum.AutomaticSize.Y,
@@ -811,7 +1632,8 @@ function library:Section(properties)
     })
 
     items.elements = library:create("Frame", {
-        Parent = items.scrolling, Name = "Elements",
+        Parent = items.scrolling,
+        Name = "Elements",
         BackgroundTransparency = 1,
         Position = dim2(0, 12, 0, 12),
         Size = dim2(1, -24, 0, 0),
@@ -845,12 +1667,13 @@ function library:Section(properties)
     })
 
     items.section_outline.MouseEnter:Connect(function()
-        library:tween(items.line, { Size = dim2(1, 0, 0, 1) })
-        library:tween(items.text, { TextColor3 = glass_theme.text })
+        library:tween(items.line, { Size = dim2(1, 0, 0, 1) }, nil, 0.15)
+        library:tween(items.text, { TextColor3 = glass_theme.text }, nil, 0.15)
     end)
+
     items.section_outline.MouseLeave:Connect(function()
-        library:tween(items.line, { Size = dim2(0, 0, 0, 1) })
-        library:tween(items.text, { TextColor3 = glass_theme.text_dim })
+        library:tween(items.line, { Size = dim2(0, 0, 0, 1) }, nil, 0.15)
+        library:tween(items.text, { TextColor3 = glass_theme.text_dim }, nil, 0.15)
     end)
 
     return setmetatable(cfg, library)
@@ -864,7 +1687,7 @@ function library:Toggle(options)
     local cfg = {
         enabled = options.enabled or options.Enabled or false,
         name = options.name or options.Name or "Toggle",
-        flag = options.flag or options.Flag or options.name or options.Name or "flag_" .. tostring(math.random(1, 99999)),
+        flag = options.flag or options.Flag or "flag_" .. tostring(math.random(1, 99999)),
         default = options.default or options.Default or false,
         callback = options.callback or options.Callback or function() end,
         items = {},
@@ -879,7 +1702,6 @@ function library:Toggle(options)
         Size = dim2(1, 0, 0, 16),
         BorderSizePixel = 0,
     })
-
     library:create("UIListLayout", {
         Parent = items.object,
         Padding = dim(0, 6),
@@ -909,8 +1731,11 @@ function library:Toggle(options)
     })
 
     function cfg.set(bool)
-        library:tween(items.text, { TextColor3 = bool and glass_theme.text or glass_theme.text_dim })
-        library:tween(items.toggle_outline, { BackgroundColor3 = bool and glass_theme.accent or glass_theme.surface_dark, BackgroundTransparency = bool and 0.05 or 0.4 })
+        library:tween(items.text, { TextColor3 = bool and glass_theme.text or glass_theme.text_dim }, nil, 0.15)
+        library:tween(items.toggle_outline, {
+            BackgroundColor3 = bool and glass_theme.accent or glass_theme.surface_dark,
+            BackgroundTransparency = bool and 0.05 or 0.4,
+        }, nil, 0.15)
         cfg.callback(bool)
         flags[cfg.flag] = bool
     end
@@ -1019,15 +1844,19 @@ function library:Slider(options)
         cfg.callback(flags[cfg.flag])
     end
 
-    items.track.MouseButton1Down:Connect(function() cfg.dragging = true end)
-    library:connection(uis.InputChanged, function(input)
-        if cfg.dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
-            local pct = (input.Position.X - items.track.AbsolutePosition.X) / items.track.AbsoluteSize.X
+    items.track.MouseButton1Down:Connect(function()
+        cfg.dragging = true
+    end)
+
+    library:connection(uis.InputChanged, function(i)
+        if cfg.dragging and i.UserInputType == Enum.UserInputType.MouseMovement then
+            local pct = (i.Position.X - items.track.AbsolutePosition.X) / items.track.AbsoluteSize.X
             cfg.set((cfg.max - cfg.min) * pct + cfg.min)
         end
     end)
-    library:connection(uis.InputEnded, function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+
+    library:connection(uis.InputEnded, function(i)
+        if i.UserInputType == Enum.UserInputType.MouseButton1 then
             cfg.dragging = false
         end
     end)
@@ -1038,7 +1867,7 @@ function library:Slider(options)
 end
 
 -- ============================================================================
--- DROPDOWN (texte centré verticalement, aligné à gauche)
+-- DROPDOWN
 -- ============================================================================
 function library:Dropdown(options)
     options = options or {}
@@ -1066,6 +1895,26 @@ function library:Dropdown(options)
         AutomaticSize = Enum.AutomaticSize.XY,
         BorderSizePixel = 0,
     })
+    library:create("UIListLayout", {
+        Parent = items.object,
+        Padding = dim(0, 4),
+        SortOrder = Enum.SortOrder.LayoutOrder,
+    })
+
+    if cfg.name then
+        library:create("TextLabel", {
+            Parent = items.object,
+            FontFace = library.font,
+            TextColor3 = glass_theme.text_dim,
+            Text = cfg.name,
+            BackgroundTransparency = 1,
+            Size = dim2(1, 0, 0, 12),
+            TextXAlignment = Enum.TextXAlignment.Left,
+            TextSize = 10,
+            BorderSizePixel = 0,
+            LayoutOrder = 0,
+        })
+    end
 
     items.dropdown_outline = library:create("TextButton", {
         Parent = items.object,
@@ -1075,6 +1924,7 @@ function library:Dropdown(options)
         AutomaticSize = Enum.AutomaticSize.X,
         BackgroundColor3 = glass_theme.surface_dark,
         BorderSizePixel = 0,
+        LayoutOrder = 1,
     })
     library:glassify(items.dropdown_outline, glass_theme.corner_radius_tiny, 0.9)
 
@@ -1103,7 +1953,7 @@ function library:Dropdown(options)
         BorderSizePixel = 0,
     })
 
-    items.dropdown_holder = library:create("Frame", {
+    items.holder = library:create("Frame", {
         Parent = library.items,
         Size = dim2(0, 114, 0, 0),
         Visible = false,
@@ -1112,10 +1962,10 @@ function library:Dropdown(options)
         BorderSizePixel = 0,
         AutomaticSize = Enum.AutomaticSize.Y,
     })
-    library:glassify(items.dropdown_holder, glass_theme.corner_radius_tiny, 1.0)
+    library:glassify(items.holder, glass_theme.corner_radius_tiny, 1.0)
 
-    items.dropdown_list = library:create("Frame", {
-        Parent = items.dropdown_holder,
+    items.list = library:create("Frame", {
+        Parent = items.holder,
         Size = dim2(1, -2, 0, -2),
         Position = dim2(0, 1, 0, 1),
         BackgroundTransparency = 1,
@@ -1123,12 +1973,12 @@ function library:Dropdown(options)
         BorderSizePixel = 0,
     })
     library:create("UIListLayout", {
-        Parent = items.dropdown_list,
+        Parent = items.list,
         Padding = dim(0, 4),
         SortOrder = Enum.SortOrder.LayoutOrder,
     })
     library:create("UIPadding", {
-        Parent = items.dropdown_list,
+        Parent = items.list,
         PaddingBottom = dim(0, 6),
         PaddingTop = dim(0, 6),
         PaddingLeft = dim(0, 6),
@@ -1137,7 +1987,7 @@ function library:Dropdown(options)
 
     function cfg.render_option(text)
         local btn = library:create("TextButton", {
-            Parent = items.dropdown_list,
+            Parent = items.list,
             FontFace = library.font,
             TextColor3 = glass_theme.text_dim,
             Text = text,
@@ -1149,19 +1999,21 @@ function library:Dropdown(options)
             TextSize = 10,
             BorderSizePixel = 0,
         })
-        library:create("UIPadding", { Parent = btn, PaddingLeft = dim(0, 6), PaddingRight = dim(0, 6) })
+        library:create("UIPadding", {
+            Parent = btn,
+            PaddingLeft = dim(0, 6),
+            PaddingRight = dim(0, 6),
+        })
         return btn
     end
 
     function cfg.set_visible(bool)
-        items.dropdown_holder.Visible = bool
+        items.holder.Visible = bool
         items.arrow.Rotation = bool and 180 or 0
-        items.dropdown_holder.Size = dim2(0, items.dropdown_outline.AbsoluteSize.X, 0, 0)
-        items.dropdown_holder.Position = dim2(
-            0,
-            items.dropdown_outline.AbsolutePosition.X,
-            0,
-            items.dropdown_outline.AbsolutePosition.Y + items.dropdown_outline.AbsoluteSize.Y + 2
+        items.holder.Size = dim2(0, items.dropdown_outline.AbsoluteSize.X, 0, 0)
+        items.holder.Position = dim2(
+            0, items.dropdown_outline.AbsolutePosition.X,
+            0, items.dropdown_outline.AbsolutePosition.Y + items.dropdown_outline.AbsoluteSize.Y + 2
         )
         library.current = cfg
     end
@@ -1184,7 +2036,9 @@ function library:Dropdown(options)
     end
 
     function cfg.refresh_options(list)
-        for _, opt in ipairs(cfg.option_instances) do opt:Destroy() end
+        for _, o in ipairs(cfg.option_instances) do
+            o:Destroy()
+        end
         cfg.option_instances = {}
         for _, opt in ipairs(list) do
             local b = cfg.render_option(opt)
@@ -1192,7 +2046,11 @@ function library:Dropdown(options)
             b.MouseButton1Down:Connect(function()
                 if cfg.multi then
                     local i = find(cfg.multi_items, b.Text)
-                    if i then remove(cfg.multi_items, i) else insert(cfg.multi_items, b.Text) end
+                    if i then
+                        remove(cfg.multi_items, i)
+                    else
+                        insert(cfg.multi_items, b.Text)
+                    end
                     cfg.set(cfg.multi_items)
                 else
                     cfg.set_visible(false)
@@ -1208,9 +2066,9 @@ function library:Dropdown(options)
         cfg.set_visible(cfg.open)
     end)
 
-    library:connection(uis.InputEnded, function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 then
-            if not (library:mouse_in_frame(items.dropdown_holder) or library:mouse_in_frame(items.object)) then
+    library:connection(uis.InputEnded, function(i)
+        if i.UserInputType == Enum.UserInputType.MouseButton1 then
+            if not (library:mouse_in_frame(items.holder) or library:mouse_in_frame(items.object)) then
                 cfg.open = false
                 cfg.set_visible(false)
             end
@@ -1219,34 +2077,8 @@ function library:Dropdown(options)
 
     cfg.refresh_options(cfg.options)
     cfg.set(cfg.default)
-
-    local set = setmetatable(cfg, library)
-
-    if cfg.name then
-        local lbl = library:create("TextLabel", {
-            Parent = items.object,
-            FontFace = library.font,
-            TextColor3 = glass_theme.text_dim,
-            Text = cfg.name,
-            BackgroundTransparency = 1,
-            AutomaticSize = Enum.AutomaticSize.XY,
-            TextSize = 10,
-            BorderSizePixel = 0,
-        })
-        items.object.Size = dim2(1, 0, 0, 30)
-        items.object.AutomaticSize = Enum.AutomaticSize.Y
-        library:create("UIListLayout", {
-            Parent = items.object,
-            Padding = dim(0, 4),
-            SortOrder = Enum.SortOrder.LayoutOrder,
-        })
-        lbl.LayoutOrder = 0
-        items.dropdown_outline.LayoutOrder = 1
-        items.object.Size = dim2(1, 0, 0, 0)
-    end
-
     config_flags[cfg.flag] = cfg.set
-    return set
+    return setmetatable(cfg, library)
 end
 
 -- ============================================================================
@@ -1258,6 +2090,7 @@ function library:Label(options)
         name = options.Name or options.name or "",
         items = {},
     }
+
     local items = cfg.items
 
     items.object = library:create("TextLabel", {
@@ -1287,7 +2120,7 @@ function library:Colorpicker(options)
     local cfg = {
         name = options.name or options.Name or "",
         flag = options.flag or options.Flag or "flag_" .. tostring(math.random(1, 99999)),
-        color = options.color or options.Color or Color3.new(1, 1, 1),
+        color = options.color or options.Color or color(1, 1, 1),
         alpha = (options.alpha and 1 - options.alpha) or 0,
         callback = options.callback or options.Callback or function() end,
         items = {},
@@ -1295,6 +2128,7 @@ function library:Colorpicker(options)
 
     local h, s, v = cfg.color:ToHSV()
     local a = cfg.alpha
+
     flags[cfg.flag] = { Color = cfg.color, Transparency = cfg.alpha }
 
     local items = cfg.items
@@ -1306,22 +2140,24 @@ function library:Colorpicker(options)
         BorderSizePixel = 0,
     })
 
-    items.gear = library:create("TextButton", {
+    items.swatch = library:create("TextButton", {
         Parent = items.row,
-        BackgroundColor3 = glass_theme.surface_dark,
-        BackgroundTransparency = 0.3,
+        BackgroundColor3 = cfg.color,
+        BackgroundTransparency = 0.1,
         Size = dim2(0, 16, 0, 16),
         Text = "",
         AutoButtonColor = false,
         BorderSizePixel = 0,
     })
-    library:create("UICorner", { Parent = items.gear, CornerRadius = dim(0, 4) })
-    library:create("UIGradient", {
-        Parent = items.gear,
-        Color = rgbseq { rgbkey(0, cfg.color), rgbkey(1, cfg.color) },
+    library:create("UICorner", { Parent = items.swatch, CornerRadius = dim(0, 4) })
+    library:create("UIStroke", {
+        Parent = items.swatch,
+        Color = glass_theme.glass_border,
+        Transparency = 0.7,
+        Thickness = 1,
     })
 
-    items.name = library:create("TextLabel", {
+    library:create("TextLabel", {
         Parent = items.row,
         FontFace = library.font,
         TextColor3 = glass_theme.text_dim,
@@ -1334,7 +2170,6 @@ function library:Colorpicker(options)
         BorderSizePixel = 0,
     })
 
-    -- picker panel
     items.panel = library:create("Frame", {
         Parent = library.items,
         Visible = false,
@@ -1345,7 +2180,6 @@ function library:Colorpicker(options)
     })
     library:glassify(items.panel, glass_theme.corner_radius_small, 1.2)
 
-    -- SV area
     items.sv = library:create("TextButton", {
         Parent = items.panel,
         Size = dim2(1, -22, 1, -40),
@@ -1356,29 +2190,27 @@ function library:Colorpicker(options)
         BorderSizePixel = 0,
     })
     library:create("UICorner", { Parent = items.sv, CornerRadius = dim(0, 6) })
-
     library:create("UIGradient", {
         Parent = items.sv,
         Rotation = 270,
         Transparency = numseq { numkey(0, 0), numkey(1, 1) },
     })
 
-    items.sv_cursor = library:create("Frame", {
+    items.sv_cur = library:create("Frame", {
         Parent = items.sv,
         Size = dim2(0, 8, 0, 8),
         AnchorPoint = vec2(0.5, 0.5),
-        BackgroundColor3 = Color3.new(1, 1, 1),
+        BackgroundColor3 = color(1, 1, 1),
         BorderSizePixel = 0,
         ZIndex = 5,
     })
-    library:create("UICorner", { Parent = items.sv_cursor, CornerRadius = dim(1, 0) })
+    library:create("UICorner", { Parent = items.sv_cur, CornerRadius = dim(1, 0) })
 
-    -- hue
     items.hue = library:create("TextButton", {
         Parent = items.panel,
         Size = dim2(0, 8, 1, -40),
         Position = dim2(1, -18, 0, 10),
-        BackgroundColor3 = Color3.new(1, 1, 1),
+        BackgroundColor3 = color(1, 1, 1),
         Text = "",
         AutoButtonColor = false,
         BorderSizePixel = 0,
@@ -1388,31 +2220,30 @@ function library:Colorpicker(options)
         Parent = items.hue,
         Rotation = 270,
         Color = rgbseq {
-            rgbkey(0, Color3.fromRGB(255, 0, 0)),
-            rgbkey(0.17, Color3.fromRGB(255, 255, 0)),
-            rgbkey(0.33, Color3.fromRGB(0, 255, 0)),
-            rgbkey(0.5, Color3.fromRGB(0, 255, 255)),
-            rgbkey(0.67, Color3.fromRGB(0, 0, 255)),
-            rgbkey(0.83, Color3.fromRGB(255, 0, 255)),
-            rgbkey(1, Color3.fromRGB(255, 0, 0)),
+            rgbkey(0,    rgb(255, 0, 0)),
+            rgbkey(0.17, rgb(255, 255, 0)),
+            rgbkey(0.33, rgb(0, 255, 0)),
+            rgbkey(0.5,  rgb(0, 255, 255)),
+            rgbkey(0.67, rgb(0, 0, 255)),
+            rgbkey(0.83, rgb(255, 0, 255)),
+            rgbkey(1,    rgb(255, 0, 0)),
         },
     })
 
-    items.hue_cursor = library:create("Frame", {
+    items.hue_cur = library:create("Frame", {
         Parent = items.hue,
         Size = dim2(1, 2, 0, 3),
         Position = dim2(0, -1, 0, -1),
-        BackgroundColor3 = Color3.new(1, 1, 1),
+        BackgroundColor3 = color(1, 1, 1),
         BorderSizePixel = 0,
         ZIndex = 5,
     })
 
-    -- alpha
     items.alpha = library:create("TextButton", {
         Parent = items.panel,
         Size = dim2(1, -22, 0, 8),
         Position = dim2(0, 10, 1, -20),
-        BackgroundColor3 = Color3.new(1, 1, 1),
+        BackgroundColor3 = color(1, 1, 1),
         Text = "",
         AutoButtonColor = false,
         BorderSizePixel = 0,
@@ -1420,14 +2251,14 @@ function library:Colorpicker(options)
     library:create("UICorner", { Parent = items.alpha, CornerRadius = dim(0, 4) })
     library:create("UIGradient", {
         Parent = items.alpha,
-        Color = rgbseq { rgbkey(0, Color3.new(0, 0, 0)), rgbkey(1, Color3.new(1, 1, 1)) },
+        Color = rgbseq { rgbkey(0, color(0, 0, 0)), rgbkey(1, color(1, 1, 1)) },
     })
 
-    items.alpha_cursor = library:create("Frame", {
+    items.alpha_cur = library:create("Frame", {
         Parent = items.alpha,
         Size = dim2(0, 3, 1, 2),
         Position = dim2(0, -1, 0, -1),
-        BackgroundColor3 = Color3.new(1, 1, 1),
+        BackgroundColor3 = color(1, 1, 1),
         BorderSizePixel = 0,
         ZIndex = 5,
     })
@@ -1436,7 +2267,10 @@ function library:Colorpicker(options)
 
     function cfg.set_visible(bool)
         items.panel.Visible = bool
-        items.panel.Position = dim2(0, items.gear.AbsolutePosition.X - 90, 0, items.gear.AbsolutePosition.Y + 22)
+        items.panel.Position = dim2(
+            0, items.swatch.AbsolutePosition.X - 90,
+            0, items.swatch.AbsolutePosition.Y + 22
+        )
         library.current = cfg
     end
 
@@ -1444,14 +2278,11 @@ function library:Colorpicker(options)
         if col then h, s, v = col:ToHSV() end
         if alpha then a = alpha end
         local Color = Color3.fromHSV(h, s, v)
-
-        items.hue_cursor.Position = dim2(0, -1, 1 - h, -1)
-        items.alpha_cursor.Position = dim2(1 - a, -1, 0, -1)
-        items.sv_cursor.Position = dim2(s, 0, 1 - v, 0)
-
+        items.hue_cur.Position = dim2(0, -1, 1 - h, -1)
+        items.alpha_cur.Position = dim2(1 - a, -1, 0, -1)
+        items.sv_cur.Position = dim2(s, 0, 1 - v, 0)
         items.sv.BackgroundColor3 = Color3.fromHSV(h, 1, 1)
-        items.gear.BackgroundColor3 = Color
-
+        items.swatch.BackgroundColor3 = Color
         flags[cfg.flag] = { Color = Color, Transparency = a }
         cfg.callback(Color, a)
     end
@@ -1469,19 +2300,19 @@ function library:Colorpicker(options)
         cfg.set(nil, nil)
     end
 
-    library:connection(uis.InputChanged, function(input)
-        if (ds or dh or da) and input.UserInputType == Enum.UserInputType.MouseMovement then
+    library:connection(uis.InputChanged, function(i)
+        if (ds or dh or da) and i.UserInputType == Enum.UserInputType.MouseMovement then
             cfg.update_color()
         end
     end)
 
-    library:connection(uis.InputEnded, function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+    library:connection(uis.InputEnded, function(i)
+        if i.UserInputType == Enum.UserInputType.MouseButton1 then
             ds, dh, da = false, false, false
         end
     end)
 
-    items.gear.MouseButton1Click:Connect(function()
+    items.swatch.MouseButton1Click:Connect(function()
         cfg.set_visible(not items.panel.Visible)
     end)
     items.sv.MouseButton1Down:Connect(function() ds = true; cfg.update_color() end)
@@ -1506,8 +2337,8 @@ function library:Textbox(options)
         callback = options.callback or options.Callback or function() end,
         items = {},
     }
-    flags[cfg.flag] = cfg.default
 
+    flags[cfg.flag] = cfg.default
     local items = cfg.items
 
     items.object = library:create("Frame", {
@@ -1523,7 +2354,7 @@ function library:Textbox(options)
     })
 
     if cfg.name ~= "" then
-        items.name = library:create("TextLabel", {
+        library:create("TextLabel", {
             Parent = items.object,
             FontFace = library.font,
             TextColor3 = glass_theme.text_dim,
@@ -1552,7 +2383,11 @@ function library:Textbox(options)
         BorderSizePixel = 0,
     })
     library:glassify(items.box, glass_theme.corner_radius_tiny, 0.9)
-    library:create("UIPadding", { Parent = items.box, PaddingLeft = dim(0, 8), PaddingRight = dim(0, 8) })
+    library:create("UIPadding", {
+        Parent = items.box,
+        PaddingLeft = dim(0, 8),
+        PaddingRight = dim(0, 8),
+    })
 
     function cfg.set(text)
         if type(text) == "boolean" then return end
@@ -1565,7 +2400,10 @@ function library:Textbox(options)
         cfg.set(items.box.Text)
     end)
 
-    if cfg.default ~= "" then cfg.set(cfg.default) end
+    if cfg.default ~= "" then
+        cfg.set(cfg.default)
+    end
+
     config_flags[cfg.flag] = cfg.set
     return setmetatable(cfg, library)
 end
@@ -1586,7 +2424,6 @@ function library:Keybind(options)
     }
 
     flags[cfg.flag] = { mode = cfg.mode, key = cfg.key, active = cfg.active }
-
     local items = cfg.items
 
     items.object = library:create("Frame", {
@@ -1597,7 +2434,7 @@ function library:Keybind(options)
     })
 
     if cfg.name then
-        items.name = library:create("TextLabel", {
+        library:create("TextLabel", {
             Parent = items.object,
             FontFace = library.font,
             TextColor3 = glass_theme.text_dim,
@@ -1634,27 +2471,31 @@ function library:Keybind(options)
         elseif type(input) == "table" then
             if input.key then cfg.key = input.key end
             if input.mode then cfg.mode = input.mode end
-            if input.active then cfg.active = input.active end
+            if input.active ~= nil then cfg.active = input.active end
             items.btn.Text = cfg.key and (keys[cfg.key] or (typeof(cfg.key) == "EnumItem" and cfg.key.Name) or "NONE") or "NONE"
         end
         cfg.callback(cfg.active)
         flags[cfg.flag] = { mode = cfg.mode, key = cfg.key, active = cfg.active }
+        library.keybinds[cfg.flag] = { key = cfg.key, mode = cfg.mode, name = cfg.name or cfg.flag }
+        if library.refresh_keybind_hud then
+            library:refresh_keybind_hud()
+        end
     end
 
     items.btn.MouseButton1Down:Connect(function()
         items.btn.Text = "..."
         local conn
-        conn = uis.InputBegan:Connect(function(input)
-            if input.UserInputType == Enum.UserInputType.Keyboard then
-                cfg.set(input.KeyCode)
+        conn = uis.InputBegan:Connect(function(i)
+            if i.UserInputType == Enum.UserInputType.Keyboard then
+                cfg.set(i.KeyCode)
                 conn:Disconnect()
             end
         end)
     end)
 
-    library:connection(uis.InputBegan, function(input, gp)
+    library:connection(uis.InputBegan, function(i, gp)
         if gp then return end
-        local k = input.UserInputType == Enum.UserInputType.Keyboard and input.KeyCode or input.UserInputType
+        local k = i.UserInputType == Enum.UserInputType.Keyboard and i.KeyCode or i.UserInputType
         if k == cfg.key then
             if cfg.mode == "Toggle" then
                 cfg.active = not cfg.active
@@ -1665,8 +2506,8 @@ function library:Keybind(options)
         end
     end)
 
-    library:connection(uis.InputEnded, function(input)
-        local k = input.UserInputType == Enum.UserInputType.Keyboard and input.KeyCode or input.UserInputType
+    library:connection(uis.InputEnded, function(i)
+        local k = i.UserInputType == Enum.UserInputType.Keyboard and i.KeyCode or i.UserInputType
         if k == cfg.key and cfg.mode == "Hold" then
             cfg.set(false)
         end
@@ -1704,10 +2545,10 @@ function library:Button(options)
     library:glassify(btn, glass_theme.corner_radius_tiny, 0.9)
 
     btn.MouseEnter:Connect(function()
-        library:tween(btn, { BackgroundTransparency = 0.05, TextColor3 = glass_theme.accent })
+        library:tween(btn, { BackgroundTransparency = 0.05, TextColor3 = glass_theme.accent }, nil, 0.12)
     end)
     btn.MouseLeave:Connect(function()
-        library:tween(btn, { BackgroundTransparency = 0.3, TextColor3 = glass_theme.text })
+        library:tween(btn, { BackgroundTransparency = 0.3, TextColor3 = glass_theme.text }, nil, 0.12)
     end)
     btn.MouseButton1Click:Connect(function()
         cfg.callback()
@@ -1717,7 +2558,86 @@ function library:Button(options)
 end
 
 -- ============================================================================
--- INIT CONFIG
+-- LIST
+-- ============================================================================
+function library:list(options)
+    options = options or {}
+    local cfg = {
+        options = options.options or options.Options or { "1", "2", "3" },
+        flag = options.flag or "flag_" .. tostring(math.random(1, 99999)),
+        callback = options.callback or function() end,
+        data = {},
+        current = nil,
+        items = {},
+    }
+
+    local items = cfg.items
+
+    items.wrap = library:create("Frame", {
+        Parent = self.items.elements,
+        BackgroundTransparency = 1,
+        Size = dim2(1, 0, 0, 0),
+        AutomaticSize = Enum.AutomaticSize.Y,
+        BorderSizePixel = 0,
+    })
+    library:create("UIListLayout", {
+        Parent = items.wrap,
+        Padding = dim(0, 4),
+        SortOrder = Enum.SortOrder.LayoutOrder,
+    })
+
+    function cfg.refresh_options(list)
+        for _, b in ipairs(cfg.data) do
+            b:Destroy()
+        end
+        cfg.data = {}
+        for _, opt in ipairs(list) do
+            local btn = library:create("TextButton", {
+                Parent = items.wrap,
+                FontFace = library.font,
+                TextColor3 = glass_theme.text_dim,
+                Text = "",
+                Size = dim2(1, 0, 0, 20),
+                BackgroundColor3 = glass_theme.surface_dark,
+                BackgroundTransparency = 0.4,
+                AutoButtonColor = false,
+                BorderSizePixel = 0,
+            })
+            library:glassify(btn, glass_theme.corner_radius_tiny, 0.7)
+
+            library:create("TextLabel", {
+                Parent = btn,
+                Text = opt,
+                FontFace = library.font,
+                TextColor3 = glass_theme.text_dim,
+                BackgroundTransparency = 1,
+                Size = dim2(1, 0, 1, 0),
+                TextSize = 10,
+                TextXAlignment = Enum.TextXAlignment.Center,
+            })
+            insert(cfg.data, btn)
+
+            btn.MouseButton1Click:Connect(function()
+                if cfg.current and cfg.current ~= btn then
+                    library:tween(cfg.current, { BackgroundTransparency = 0.4 }, nil, 0.15)
+                end
+                flags[cfg.flag] = opt
+                cfg.callback(opt)
+                library:tween(btn, {
+                    BackgroundTransparency = 0.05,
+                    BackgroundColor3 = glass_theme.accent,
+                }, nil, 0.15)
+                cfg.current = btn
+            end)
+        end
+    end
+
+    cfg.refresh_options(cfg.options)
+    return setmetatable(cfg, library)
+end
+
+-- ============================================================================
+-- INIT CONFIG TAB
 -- ============================================================================
 function library:init_config(window)
     local textbox
@@ -1727,7 +2647,9 @@ function library:init_config(window)
     config_holder = section:Dropdown({
         name = "Configs",
         options = { "Default" },
-        callback = function(opt) if textbox then textbox.set(opt) end end,
+        callback = function(opt)
+            if textbox then textbox.set(opt) end
+        end,
         flag = "config_name_list",
     })
 
@@ -1736,42 +2658,48 @@ function library:init_config(window)
     section:Button({
         name = "Save",
         callback = function()
-            local name = flags["config_name_text"]
-            if name and name ~= "" then
-                writefile(library.directory .. "/configs/" .. name .. ".cfg", library:get_config())
+            local n = flags["config_name_text"]
+            if n and n ~= "" then
+                writefile(library.directory .. "/configs/" .. n .. ".cfg", library:get_config())
                 library:update_config_list()
             end
         end,
     })
+
     section:Button({
         name = "Load",
         callback = function()
-            local name = flags["config_name_text"]
-            if name and isfile(library.directory .. "/configs/" .. name .. ".cfg") then
-                library:load_config(readfile(library.directory .. "/configs/" .. name .. ".cfg"))
+            local n = flags["config_name_text"]
+            if n and isfile(library.directory .. "/configs/" .. n .. ".cfg") then
+                library:load_config(readfile(library.directory .. "/configs/" .. n .. ".cfg"))
             end
         end,
     })
+
     section:Button({
         name = "Delete",
         callback = function()
-            local name = flags["config_name_text"]
-            if name and isfile(library.directory .. "/configs/" .. name .. ".cfg") then
-                delfile(library.directory .. "/configs/" .. name .. ".cfg")
+            local n = flags["config_name_text"]
+            if n and isfile(library.directory .. "/configs/" .. n .. ".cfg") then
+                delfile(library.directory .. "/configs/" .. n .. ".cfg")
                 library:update_config_list()
             end
         end,
     })
 
     section:Label({ name = "UI Bind" }):Keybind({
-        callback = function(bool) window.toggle_menu(bool) end,
+        callback = function(v)
+            window.toggle_menu(v)
+        end,
     })
 end
 
 function library:update_config_list()
     if not config_holder then return end
     local list = {}
-    local ok, files = pcall(function() return listfiles(library.directory .. "/configs") end)
+    local ok, files = pcall(function()
+        return listfiles(library.directory .. "/configs")
+    end)
     if ok and files then
         for _, f in ipairs(files) do
             local n = f:match("([^/\\]+)%.cfg$")
@@ -1796,7 +2724,9 @@ function library:get_config()
 end
 
 function library:load_config(json)
-    local ok, cfg = pcall(function() return http_service:JSONDecode(json) end)
+    local ok, cfg = pcall(function()
+        return http_service:JSONDecode(json)
+    end)
     if not ok or type(cfg) ~= "table" then return end
     for k, v in pairs(cfg) do
         if k ~= "config_name_list" then
@@ -1815,69 +2745,19 @@ function library:load_config(json)
 end
 
 -- ============================================================================
--- NOTIFICATIONS
+-- UNLOAD
 -- ============================================================================
-local notif = library.notifications
-
-function notif:refresh()
-    local y = 50
-    for _, v in pairs(notif.notifs) do
-        if v and v.Parent then
-            tween_service:Create(v, TweenInfo.new(0.8, Enum.EasingStyle.Exponential), { Position = dim_offset(20, y) }):Play()
-            y = y + v.AbsoluteSize.Y + 10
-        end
+function library:unload_menu()
+    if library.items then library.items:Destroy() end
+    if library.other then library.other:Destroy() end
+    for _, c in ipairs(library.connections) do
+        pcall(function() c:Disconnect() end)
     end
+    library.connections = {}
 end
 
-function notif:create(options)
-    options = options or {}
-    local name = options.name or "Notification"
-    local color = options.color or glass_theme.accent
-
-    if not library.items then return end
-
-    local card = library:create("TextButton", {
-        Parent = library.items,
-        Size = dim2(0, 240, 0, 34),
-        BackgroundColor3 = glass_theme.surface_dark,
-        BackgroundTransparency = 0.15,
-        Text = "",
-        AutoButtonColor = false,
-        BorderSizePixel = 0,
-    })
-    library:glassify(card, glass_theme.corner_radius_small, 1.1)
-
-    library:create("Frame", {
-        Parent = card, Name = "Accent",
-        Size = dim2(0, 3, 1, -8),
-        Position = dim2(0, 4, 0, 4),
-        BackgroundColor3 = color,
-        BorderSizePixel = 0,
-    })
-
-    library:create("TextLabel", {
-        Parent = card,
-        FontFace = library.font,
-        TextColor3 = glass_theme.text,
-        Text = name,
-        BackgroundTransparency = 1,
-        Position = dim2(0, 14, 0, 0),
-        Size = dim2(1, -18, 1, 0),
-        TextXAlignment = Enum.TextXAlignment.Left,
-        TextSize = 10,
-        BorderSizePixel = 0,
-    })
-
-    local i = #notif.notifs + 1
-    notif.notifs[i] = card
-    notif:refresh()
-
-    task.delay(4, function()
-        notif.notifs[i] = nil
-        if card and card.Parent then card:Destroy() end
-        notif:refresh()
-    end)
-end
-
-print("[monolithhh] loaded — Liquid Glass V1/V2 + sub-tabs")
+-- ============================================================================
+-- DONE
+-- ============================================================================
+print("[monolithhh] loaded — Liquid Glass COMPLET")
 return library, notifications
