@@ -1195,27 +1195,29 @@
 
                     if now - last_dashboard_layout >= 0.2 then
                         local dashboard_width = dashboard.AbsoluteSize.X
-                        local compact_layout = dashboard_width < 560
-                        local panel_width = compact_layout and (dashboard_width - 24) or ((dashboard_width - 40) / 2)
-                        local tile_side = math.max(88, (panel_width - 24 - 8) / 2)
-                        local panel_height = 24 + (tile_side * 4) + (8 * 3)
-                        local grid_cell_size = dim2(0.5, -4, 0, tile_side)
+                        local panel_width = math.max(1, (dashboard_width - 40) / 2)
+                        local grid_columns = panel_width < 190 and 1 or 2
+                        local tile_side = math.clamp(
+                            (panel_width - 24 - (grid_columns == 2 and 8 or 0)) / grid_columns,
+                            52,
+                            136
+                        )
+                        local grid_rows = math.ceil(8 / grid_columns)
+                        local panel_height = 24 + (tile_side * grid_rows) + (8 * (grid_rows - 1))
+                        local grid_cell_size = dim2(
+                            1 / grid_columns,
+                            grid_columns == 2 and -4 or 0,
+                            0,
+                            tile_side
+                        )
                         player_grid.CellSize = grid_cell_size
                         server_grid.CellSize = grid_cell_size
 
-                        if compact_layout then
-                            player_panel.Position = dim2(0, 12, 0, 58)
-                            player_panel.Size = dim2(1, -24, 0, panel_height)
-                            server_panel.Position = dim2(0, 12, 0, 58 + panel_height + 12)
-                            server_panel.Size = dim2(1, -24, 0, panel_height)
-                            dashboard.CanvasSize = dim2(0, 0, 0, 58 + panel_height * 2 + 28)
-                        else
-                            player_panel.Position = dim2(0, 16, 0, 58)
-                            player_panel.Size = dim2(0.5, -24, 0, panel_height)
-                            server_panel.Position = dim2(0.5, 8, 0, 58)
-                            server_panel.Size = dim2(0.5, -24, 0, panel_height)
-                            dashboard.CanvasSize = dim2(0, 0, 0, 58 + panel_height + 16)
-                        end
+                        player_panel.Position = dim2(0, 16, 0, 58)
+                        player_panel.Size = dim2(0.5, -24, 0, panel_height)
+                        server_panel.Position = dim2(0.5, 8, 0, 58)
+                        server_panel.Size = dim2(0.5, -24, 0, panel_height)
+                        dashboard.CanvasSize = dim2(0, 0, 0, 58 + panel_height + 16)
                         last_dashboard_layout = now
                     end
                 end)
