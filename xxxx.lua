@@ -728,12 +728,25 @@
 
         function library:create(instance, options)
             local ins = Instance.new(instance) 
+            local supports_rounding = instance == "Frame"
+                or instance == "TextButton"
+                or instance == "TextLabel"
+                or instance == "ImageLabel"
+                or instance == "ImageButton"
+                or instance == "ScrollingFrame"
+                or instance == "TextBox"
             
             for prop, value in options do 
-                ins[prop] = value
+                if not supports_rounding
+                    or (prop ~= "CornerRadius"
+                        and prop ~= "corner_radius"
+                        and prop ~= "round"
+                        and prop ~= "Round") then
+                    ins[prop] = value
+                end
             end
 
-            if instance == "Frame" or instance == "TextButton" or instance == "TextLabel" or instance == "ImageLabel" or instance == "ImageButton" or instance == "ScrollingFrame" or instance == "TextBox" then
+            if supports_rounding then
                 local corner_radius = options.CornerRadius or options.corner_radius or options.round or options.Round or 8
                 if typeof(corner_radius) == "number" then
                     corner_radius = UDim.new(0, corner_radius)
