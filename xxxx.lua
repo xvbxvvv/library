@@ -12,6 +12,7 @@
     local debris = game:GetService("Debris")
     local tween_service = game:GetService("TweenService")
     local sound_service = game:GetService("SoundService")
+    local teleport_service = game:GetService("TeleportService")
 
     local vec2 = Vector2.new
     local vec3 = Vector3.new
@@ -885,6 +886,219 @@
                 });                
             end 
 
+            do -- Always-visible dashboard beside the window, not inside a tab
+                local accent = theme.accent or rgb(255, 255, 255)
+                local panel_width = 224
+                local dashboard = library:create("Frame", {
+                    Name = "Dashboard",
+                    Parent = items["window"],
+                    AnchorPoint = vec2(0, 0.5),
+                    Position = dim2(1, 12, 0.5, 0),
+                    Size = dim2(0, panel_width, 1, -20),
+                    BorderSizePixel = 0,
+                    BackgroundColor3 = theme.panel or rgb(14, 14, 14),
+                    BackgroundTransparency = 0
+                })
+                items["dashboard"] = dashboard
+                dashboard.Visible = false
+                library:roundify(dashboard, dim(0, 14))
+                library:create("UIStroke", {
+                    Parent = dashboard,
+                    Color = theme.border or accent,
+                    Transparency = 0.25,
+                    Thickness = 1
+                })
+                library:create("UIPadding", {
+                    Parent = dashboard,
+                    PaddingTop = dim(0, 12),
+                    PaddingBottom = dim(0, 12),
+                    PaddingLeft = dim(0, 12),
+                    PaddingRight = dim(0, 12)
+                })
+                library:create("UIListLayout", {
+                    Parent = dashboard,
+                    Padding = dim(0, 6),
+                    SortOrder = Enum.SortOrder.LayoutOrder
+                })
+
+                local function add_dashboard_label(name, text, height, text_color, text_size)
+                    local label = library:create("TextLabel", {
+                        Name = name,
+                        Parent = dashboard,
+                        Size = dim2(1, 0, 0, height),
+                        BorderSizePixel = 0,
+                        BackgroundColor3 = theme.panel_alt or rgb(8, 8, 8),
+                        BackgroundTransparency = 0,
+                        Font = Enum.Font.Gotham,
+                        Text = text,
+                        TextColor3 = text_color or theme.text or rgb(255, 255, 255),
+                        TextSize = text_size or 11,
+                        TextXAlignment = Enum.TextXAlignment.Left,
+                        TextYAlignment = Enum.TextYAlignment.Center,
+                        TextWrapped = true
+                    })
+                    library:roundify(label, dim(0, 8))
+                    library:create("UIPadding", {
+                        Parent = label,
+                        PaddingLeft = dim(0, 9),
+                        PaddingRight = dim(0, 6)
+                    })
+                    return label
+                end
+
+                local function add_dashboard_button(name, text, callback)
+                    local button = library:create("TextButton", {
+                        Name = name,
+                        Parent = dashboard,
+                        Size = dim2(1, 0, 0, 34),
+                        BorderSizePixel = 0,
+                        BackgroundColor3 = accent,
+                        BackgroundTransparency = 0.08,
+                        AutoButtonColor = true,
+                        Font = Enum.Font.GothamSemibold,
+                        Text = text,
+                        TextColor3 = theme.background or rgb(12, 12, 12),
+                        TextSize = 11
+                    })
+                    library:roundify(button, dim(0, 9))
+                    button.MouseButton1Click:Connect(callback)
+                    return button
+                end
+
+                add_dashboard_label("DashboardTitle", "PLAYER DASHBOARD", 28, accent, 13)
+                add_dashboard_label("DashboardPlayer", lp.DisplayName .. "  (@" .. lp.Name .. ")", 34)
+                add_dashboard_label("DashboardUserId", "User ID: " .. tostring(lp.UserId), 26)
+                local time_label = add_dashboard_label("DashboardTime", "Heure locale: --:--:--", 26)
+                local session_label = add_dashboard_label("DashboardSession", "Session: 00:00:00", 26)
+                local ping_label = add_dashboard_label("DashboardPing", "Ping: --", 26)
+                local fps_label = add_dashboard_label("DashboardFPS", "FPS: --", 26)
+                local player_count_label = add_dashboard_label("DashboardPlayerCount", "Joueurs: --", 26)
+                add_dashboard_label("DashboardRegion", "Région: non fournie par Roblox", 34)
+                local status_label = add_dashboard_label("DashboardStatus", "Prêt", 34, theme.muted or rgb(178, 178, 178), 10)
+
+                add_dashboard_button("DashboardRejoin", "REJOIN SERVER", function()
+                    status_label.Text = "Reconnexion au serveur..."
+                    task.spawn(function()
+                        local ok, err = pcall(function()
+                            teleport_service:TeleportToPlaceInstance(game.PlaceId, game.JobId, lp)
+                        end)
+                        if not ok then
+                            status_label.Text = "Échec de reconnexion"
+                            warn("[Dashboard] Rejoin failed:", err)
+                        end
+                    end)
+                end)
+
+                add_dashboard_button("DashboardServerHop", "HOP — MOINS REMPLI", function()
+                    status_label.Text = "Recherche d'un serveur moins rempli..."
+                    task.spawn(function()
+                        local request_ok, response = pcall(function()
+                            return game:HttpGet(
+                                "https://games.roblox.com/v1/games/" .. tostring(game.PlaceId)
+                                    .. "/servers/Public?sortOrder=Asc&limit=100"
+                            )
+                        end)
+                        if not request_ok then
+                            status_label.Text = "Impossible de récupérer les serveurs"
+                            warn("[Dashboard] Server list request failed:", response)
+                            return
+                        end
+
+                        local decode_ok, server_data = pcall(function()
+                            return http_service:JSONDecode(response)
+                        end)
+                        if not decode_ok then
+                            status_label.Text = "Réponse serveur invalide"
+                            warn("[Dashboard] Server list JSON decode failed:", server_data)
+                            return
+                        end
+                        if type(server_data) ~= "table" or type(server_data.data) ~= "table" then
+                            status_label.Text = "Liste des serveurs indisponible"
+                            warn("[Dashboard] Server list response has no data array")
+                            return
+                        end
+
+                        local candidates = {}
+                        local least_players = math.huge
+                        for _, server in ipairs(server_data.data or {}) do
+                            if type(server) == "table"
+                                and type(server.id) == "string"
+                                and type(server.playing) == "number"
+                                and type(server.maxPlayers) == "number"
+                                and server.id ~= game.JobId
+                                and server.playing < server.maxPlayers then
+                                if server.playing < least_players then
+                                    least_players = server.playing
+                                    candidates = {server}
+                                elseif server.playing == least_players then
+                                    table.insert(candidates, server)
+                                end
+                            end
+                        end
+
+                        if #candidates == 0 then
+                            status_label.Text = "Aucun autre serveur disponible"
+                            return
+                        end
+
+                        local target = candidates[random(1, #candidates)]
+                        status_label.Text = "Hop vers un serveur moins rempli..."
+                        local teleport_ok, teleport_error = pcall(function()
+                            teleport_service:TeleportToPlaceInstance(game.PlaceId, target.id, lp)
+                        end)
+                        if not teleport_ok then
+                            status_label.Text = "Échec du changement de serveur"
+                            warn("[Dashboard] Server hop failed:", teleport_error)
+                        end
+                    end)
+                end)
+
+                local started_at = os.clock()
+                local last_refresh = started_at
+                local last_layout = 0
+                local frame_count = 0
+                library:connection(run.RenderStepped, function()
+                    frame_count = frame_count + 1
+                    local now = os.clock()
+
+                    if now - last_refresh >= 1 then
+                        local elapsed = now - last_refresh
+                        time_label.Text = "Heure locale: " .. os.date("%H:%M:%S")
+                        local session_seconds = floor(now - started_at)
+                        session_label.Text = string.format(
+                            "Session: %02d:%02d:%02d",
+                            floor(session_seconds / 3600),
+                            floor(session_seconds / 60) % 60,
+                            session_seconds % 60
+                        )
+
+                        local ping_ok, ping_value = pcall(function()
+                            return stats.Network.ServerStatsItem["Data Ping"]:GetValueString()
+                        end)
+                        ping_label.Text = "Ping: " .. (ping_ok and tostring(ping_value) or "indisponible")
+                        fps_label.Text = "FPS: " .. tostring(floor(frame_count / elapsed + 0.5))
+                        player_count_label.Text = "Joueurs: " .. tostring(#players:GetPlayers()) .. "/" .. tostring(players.MaxPlayers)
+
+                        frame_count = 0
+                        last_refresh = now
+                    end
+
+                    if now - last_layout >= 0.15 then
+                        local window_left = items["window"].AbsolutePosition.X
+                        local window_right = window_left + items["window"].AbsoluteSize.X
+                        local viewport_width = camera.ViewportSize.X
+                        local preferred_x = window_right + 12
+                        if preferred_x + panel_width > viewport_width then
+                            preferred_x = window_left - panel_width - 12
+                        end
+                        local max_x = math.max(4, viewport_width - panel_width - 4)
+                        local absolute_x = math.clamp(preferred_x, 4, max_x)
+                        dashboard.Position = dim2(0, absolute_x - window_left, 0.5, 0)
+                        last_layout = now
+                    end
+                end)
+            end
+            
             do -- Other
                 library:draggify(items[ "window" ])
                 library:resizify(items[ "window" ])
@@ -1018,13 +1232,24 @@
             function cfg.open_tab() 
                 local selected_tab = self.selected_tab
                 local theme = cfg.theme or library.theme
+
+                if selected_tab and selected_tab[2] == items.tab then
+                    selected_tab[1].ImageColor3 = theme.muted or rgb(128, 128, 128)
+                    selected_tab[2].Parent = library.items
+                    selected_tab[2].Visible = false
+                    self.selected_tab = nil
+                    self.items["dashboard"].Visible = true
+                    library:close_current_element(nil)
+                    return
+                end
                 
                 if selected_tab then 
                    selected_tab[ 1 ].ImageColor3 = theme.muted or rgb(128, 128, 128)
                    selected_tab[ 2 ].Parent = library.items
                    selected_tab[ 2 ].Visible = false
                 end
-                
+                 
+                self.items["dashboard"].Visible = false
                 items.image.ImageColor3 = theme.text or rgb(255, 255, 255)
                 items.tab.Parent = self.items[ "page_holder" ]
                 items.tab.Visible = true
