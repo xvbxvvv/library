@@ -785,6 +785,7 @@
                 logo = properties.logo or properties.Logo or "rbxassetid://128155293790451";
                 theme = library:resolve_theme(properties.theme or properties.Theme or library.theme),
                 style = library:configure_style(properties.style or properties.Style or library.style),
+                auto_size = properties.auto_size ~= false and properties.AutoSize ~= false,
 
                 selected_tab;
                 items = {};
@@ -793,24 +794,22 @@
             
             local theme = cfg.theme
             local style = cfg.style
-            local viewport = camera.ViewportSize
-            local initial_size
+            local viewport = (ws.CurrentCamera or camera).ViewportSize
 
-            if viewport.X <= 700 or viewport.Y <= cfg.size.Y.Offset + 20 then
-                initial_size = dim2(
+            local function get_window_size(viewport_size)
+                if not cfg.auto_size then
+                    return cfg.size
+                end
+
+                return dim2(
                     0,
-                    math.max(200, math.min(viewport.X - 12, viewport.X * 0.94)),
+                    math.min(cfg.size.X.Offset, math.max(1, viewport_size.X * 0.94)),
                     0,
-                    math.max(200, math.min(viewport.Y - 12, viewport.Y * 0.9))
-                )
-            else
-                initial_size = dim2(
-                    0,
-                    math.min(cfg.size.X.Offset, viewport.X - 12),
-                    0,
-                    math.min(cfg.size.Y.Offset, viewport.Y - 12)
+                    math.min(cfg.size.Y.Offset, math.max(1, viewport_size.Y * 0.9))
                 )
             end
+
+            local initial_size = get_window_size(viewport)
             
             library[ "items" ] = library:create( "ScreenGui" , {
                 Parent = coregui;
@@ -841,27 +840,40 @@
                     CornerRadius = UDim.new(0, style.radius or 14)
                 });
 
-                library:connection(camera:GetPropertyChangedSignal("ViewportSize"), function()
-                    local new_viewport = camera.ViewportSize
-                    local new_size
-                    if new_viewport.X <= 700 or new_viewport.Y <= cfg.size.Y.Offset + 20 then
-                        new_size = dim2(
-                            0,
-                            math.max(200, math.min(new_viewport.X - 12, new_viewport.X * 0.94)),
-                            0,
-                            math.max(200, math.min(new_viewport.Y - 12, new_viewport.Y * 0.9))
-                        )
-                    else
-                        new_size = dim2(
-                            0,
-                            math.min(cfg.size.X.Offset, new_viewport.X - 12),
-                            0,
-                            math.min(cfg.size.Y.Offset, new_viewport.Y - 12)
+                local function update_window_size()
+                    local current_camera = ws.CurrentCamera or camera
+                    if not current_camera then
+                        return
+                    end
+
+                    local new_size = get_window_size(current_camera.ViewportSize)
+                    items["window"].Size = new_size
+                    items["window"].Position = dim2(
+                        0.5,
+                        -new_size.X.Offset / 2,
+                        0.5,
+                        -new_size.Y.Offset / 2
+                    )
+                end
+
+                local viewport_connection
+                local function bind_camera_viewport()
+                    if viewport_connection then
+                        viewport_connection:Disconnect()
+                    end
+
+                    local current_camera = ws.CurrentCamera
+                    if current_camera then
+                        viewport_connection = library:connection(
+                            current_camera:GetPropertyChangedSignal("ViewportSize"),
+                            update_window_size
                         )
                     end
-                    items["window"].Size = new_size
-                    items["window"].Position = dim2(0.5, -new_size.X.Offset / 2, 0.5, -new_size.Y.Offset / 2)
-                end)
+                    update_window_size()
+                end
+
+                library:connection(ws:GetPropertyChangedSignal("CurrentCamera"), bind_camera_viewport)
+                bind_camera_viewport()
 
                 items[ "top_frame" ] = library:create( "Frame" , {
                     Name = "\0";
