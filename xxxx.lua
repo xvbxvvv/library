@@ -232,7 +232,8 @@
             local resizing = false 
             local start_size 
             local start 
-            local og_size = frame.Size  
+            local min_width = 200
+            local min_height = 200
 
             Frame.InputBegan:Connect(function(input)
                 if input.UserInputType == Enum.UserInputType.MouseButton1 then
@@ -257,14 +258,14 @@
                         start_size.X.Scale,
                         math.clamp(
                             start_size.X.Offset + (input.Position.X - start.X),
-                            og_size.X.Offset,
-                            viewport_x
+                            min_width,
+                            math.max(min_width, viewport_x - 8)
                         ),
                         start_size.Y.Scale,
                         math.clamp(
                             start_size.Y.Offset + (input.Position.Y - start.Y),
-                            og_size.Y.Offset,
-                            viewport_y
+                            min_height,
+                            math.max(min_height, viewport_y - 8)
                         )
                     )
 
@@ -792,6 +793,24 @@
             
             local theme = cfg.theme
             local style = cfg.style
+            local viewport = camera.ViewportSize
+            local initial_size
+
+            if viewport.X <= 700 or viewport.Y <= cfg.size.Y.Offset + 20 then
+                initial_size = dim2(
+                    0,
+                    math.max(200, math.min(viewport.X - 12, viewport.X * 0.94)),
+                    0,
+                    math.max(200, math.min(viewport.Y - 12, viewport.Y * 0.9))
+                )
+            else
+                initial_size = dim2(
+                    0,
+                    math.min(cfg.size.X.Offset, viewport.X - 12),
+                    0,
+                    math.min(cfg.size.Y.Offset, viewport.Y - 12)
+                )
+            end
             
             library[ "items" ] = library:create( "ScreenGui" , {
                 Parent = coregui;
@@ -814,13 +833,35 @@
                     Parent = library.items;
                     Name = "\0";
                     Visible = false;
-                    Position = dim2(0.5, -cfg.size.X.Offset / 2, 0.5, -cfg.size.Y.Offset / 2);
+                    Position = dim2(0.5, -initial_size.X.Offset / 2, 0.5, -initial_size.Y.Offset / 2);
                     BorderColor3 = theme.border or rgb(0, 0, 0);
-                    Size = cfg.size;
+                    Size = initial_size;
                     BorderSizePixel = 0;
                     BackgroundColor3 = theme.background or rgb(12, 12, 12),
                     CornerRadius = UDim.new(0, style.radius or 14)
-                }); items[ "window" ].Position = dim2(0, items[ "window" ].AbsolutePosition.X, 0, items[ "window" ].AbsolutePosition.Y)          
+                });
+
+                library:connection(camera:GetPropertyChangedSignal("ViewportSize"), function()
+                    local new_viewport = camera.ViewportSize
+                    local new_size
+                    if new_viewport.X <= 700 or new_viewport.Y <= cfg.size.Y.Offset + 20 then
+                        new_size = dim2(
+                            0,
+                            math.max(200, math.min(new_viewport.X - 12, new_viewport.X * 0.94)),
+                            0,
+                            math.max(200, math.min(new_viewport.Y - 12, new_viewport.Y * 0.9))
+                        )
+                    else
+                        new_size = dim2(
+                            0,
+                            math.min(cfg.size.X.Offset, new_viewport.X - 12),
+                            0,
+                            math.min(cfg.size.Y.Offset, new_viewport.Y - 12)
+                        )
+                    end
+                    items["window"].Size = new_size
+                    items["window"].Position = dim2(0.5, -new_size.X.Offset / 2, 0.5, -new_size.Y.Offset / 2)
+                end)
 
                 items[ "top_frame" ] = library:create( "Frame" , {
                     Name = "\0";
@@ -906,13 +947,18 @@
 
             do -- Dashboard view fills the page area when no tab is selected
                 local accent = theme.accent or rgb(255, 255, 255)
-                local dashboard = library:create("Frame", {
+                local dashboard = library:create("ScrollingFrame", {
                     Name = "Dashboard",
                     Parent = items["page_holder"],
                     Position = dim2(0, 0, 0, 0),
                     Size = dim2(1, 0, 1, 0),
                     BorderSizePixel = 0,
-                    BackgroundTransparency = 1
+                    BackgroundTransparency = 1,
+                    CanvasSize = dim2(0, 0, 0, 0),
+                    ScrollingDirection = Enum.ScrollingDirection.Y,
+                    ScrollBarThickness = 4,
+                    ScrollBarImageColor3 = accent,
+                    AutomaticCanvasSize = Enum.AutomaticSize.None
                 })
                 items["dashboard"] = dashboard
                 dashboard.Visible = false
@@ -1107,6 +1153,7 @@
                 local started_at = os.clock()
                 local last_refresh = started_at
                 local frame_count = 0
+                local last_dashboard_layout = 0
                 library:connection(run.RenderStepped, function()
                     frame_count = frame_count + 1
                     local now = os.clock()
@@ -1133,6 +1180,26 @@
                         last_refresh = now
                     end
 
+                    if now - last_dashboard_layout >= 0.2 then
+                        local dashboard_width = dashboard.AbsoluteSize.X
+                        local dashboard_height = dashboard.AbsoluteSize.Y
+                        if dashboard_width < 560 then
+                            local player_height = 360
+                            local server_height = 360
+                            player_panel.Position = dim2(0, 12, 0, 58)
+                            player_panel.Size = dim2(1, -24, 0, player_height)
+                            server_panel.Position = dim2(0, 12, 0, 58 + player_height + 12)
+                            server_panel.Size = dim2(1, -24, 0, server_height)
+                            dashboard.CanvasSize = dim2(0, 0, 0, 58 + player_height + 12 + server_height + 16)
+                        else
+                            player_panel.Position = dim2(0, 16, 0, 58)
+                            player_panel.Size = dim2(0.5, -24, 1, -74)
+                            server_panel.Position = dim2(0.5, 8, 0, 58)
+                            server_panel.Size = dim2(0.5, -24, 1, -74)
+                            dashboard.CanvasSize = dim2(0, 0, 0, dashboard_height)
+                        end
+                        last_dashboard_layout = now
+                    end
                 end)
             end
             
