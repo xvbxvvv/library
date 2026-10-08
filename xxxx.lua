@@ -904,50 +904,76 @@
                 });                
             end 
 
-            do -- Always-visible dashboard beside the window, not inside a tab
+            do -- Dashboard view fills the page area when no tab is selected
                 local accent = theme.accent or rgb(255, 255, 255)
-                local panel_width = 224
                 local dashboard = library:create("Frame", {
                     Name = "Dashboard",
-                    Parent = items["window"],
-                    AnchorPoint = vec2(0, 0.5),
-                    Position = dim2(1, 12, 0.5, 0),
-                    Size = dim2(0, panel_width, 1, -20),
+                    Parent = items["page_holder"],
+                    Position = dim2(0, 0, 0, 0),
+                    Size = dim2(1, 0, 1, 0),
                     BorderSizePixel = 0,
-                    BackgroundColor3 = theme.panel or rgb(14, 14, 14),
-                    BackgroundTransparency = 0
+                    BackgroundTransparency = 1
                 })
                 items["dashboard"] = dashboard
                 dashboard.Visible = false
-                library:roundify(dashboard, dim(0, 14))
-                library:create("UIStroke", {
+                library:create("TextLabel", {
+                    Name = "DashboardTitle",
                     Parent = dashboard,
-                    Color = theme.border or accent,
-                    Transparency = 0.25,
-                    Thickness = 1
+                    Position = dim2(0, 16, 0, 12),
+                    Size = dim2(1, -32, 0, 36),
+                    BackgroundTransparency = 1,
+                    FontFace = library.font,
+                    Text = "PLAYER DASHBOARD",
+                    TextColor3 = accent,
+                    TextSize = 16,
+                    TextXAlignment = Enum.TextXAlignment.Left,
+                    TextYAlignment = Enum.TextYAlignment.Center
                 })
-                library:create("UIPadding", {
+                local player_panel = library:create("Frame", {
+                    Name = "PlayerPanel",
                     Parent = dashboard,
-                    PaddingTop = dim(0, 12),
-                    PaddingBottom = dim(0, 12),
-                    PaddingLeft = dim(0, 12),
-                    PaddingRight = dim(0, 12)
+                    Position = dim2(0, 16, 0, 58),
+                    Size = dim2(0.5, -24, 1, -74),
+                    BorderSizePixel = 0,
+                    BackgroundColor3 = theme.panel or rgb(14, 14, 14)
                 })
-                library:create("UIListLayout", {
+                library:roundify(player_panel, dim(0, style.section_radius or 12))
+                local server_panel = library:create("Frame", {
+                    Name = "ServerPanel",
                     Parent = dashboard,
-                    Padding = dim(0, 6),
-                    SortOrder = Enum.SortOrder.LayoutOrder
+                    Position = dim2(0.5, 8, 0, 58),
+                    Size = dim2(0.5, -24, 1, -74),
+                    BorderSizePixel = 0,
+                    BackgroundColor3 = theme.panel or rgb(14, 14, 14)
                 })
+                library:roundify(server_panel, dim(0, style.section_radius or 12))
 
-                local function add_dashboard_label(name, text, height, text_color, text_size)
+                local function make_dashboard_column(panel)
+                    library:create("UIPadding", {
+                        Parent = panel,
+                        PaddingTop = dim(0, 12),
+                        PaddingBottom = dim(0, 12),
+                        PaddingLeft = dim(0, 12),
+                        PaddingRight = dim(0, 12)
+                    })
+                    library:create("UIListLayout", {
+                        Parent = panel,
+                        Padding = dim(0, 7),
+                        SortOrder = Enum.SortOrder.LayoutOrder
+                    })
+                end
+                make_dashboard_column(player_panel)
+                make_dashboard_column(server_panel)
+
+                local function add_dashboard_label(parent, name, text, height, text_color, text_size)
                     local label = library:create("TextLabel", {
                         Name = name,
-                        Parent = dashboard,
+                        Parent = parent,
                         Size = dim2(1, 0, 0, height),
                         BorderSizePixel = 0,
                         BackgroundColor3 = theme.panel_alt or rgb(8, 8, 8),
                         BackgroundTransparency = 0,
-                        Font = Enum.Font.Gotham,
+                        FontFace = library.font,
                         Text = text,
                         TextColor3 = text_color or theme.text or rgb(255, 255, 255),
                         TextSize = text_size or 11,
@@ -967,13 +993,13 @@
                 local function add_dashboard_button(name, text, callback)
                     local button = library:create("TextButton", {
                         Name = name,
-                        Parent = dashboard,
+                        Parent = server_panel,
                         Size = dim2(1, 0, 0, 34),
                         BorderSizePixel = 0,
                         BackgroundColor3 = accent,
                         BackgroundTransparency = 0.08,
                         AutoButtonColor = true,
-                        Font = Enum.Font.GothamSemibold,
+                        FontFace = library.font,
                         Text = text,
                         TextColor3 = theme.background or rgb(12, 12, 12),
                         TextSize = 11
@@ -983,16 +1009,23 @@
                     return button
                 end
 
-                add_dashboard_label("DashboardTitle", "PLAYER DASHBOARD", 28, accent, 13)
-                add_dashboard_label("DashboardPlayer", lp.DisplayName .. "  (@" .. lp.Name .. ")", 34)
-                add_dashboard_label("DashboardUserId", "User ID: " .. tostring(lp.UserId), 26)
-                local time_label = add_dashboard_label("DashboardTime", "Heure locale: --:--:--", 26)
-                local session_label = add_dashboard_label("DashboardSession", "Session: 00:00:00", 26)
-                local ping_label = add_dashboard_label("DashboardPing", "Ping: --", 26)
-                local fps_label = add_dashboard_label("DashboardFPS", "FPS: --", 26)
-                local player_count_label = add_dashboard_label("DashboardPlayerCount", "Joueurs: --", 26)
-                add_dashboard_label("DashboardRegion", "Région: non fournie par Roblox", 34)
-                local status_label = add_dashboard_label("DashboardStatus", "Prêt", 34, theme.muted or rgb(178, 178, 178), 10)
+                add_dashboard_label(player_panel, "DashboardPlayerHeading", "PLAYER TRACKER", 34, accent, 12)
+                add_dashboard_label(player_panel, "DashboardPlayer", "Joueur: " .. lp.DisplayName, 40)
+                add_dashboard_label(player_panel, "DashboardUsername", "Utilisateur: @" .. lp.Name, 34)
+                add_dashboard_label(player_panel, "DashboardUserId", "User ID: " .. tostring(lp.UserId), 34)
+                local time_label = add_dashboard_label(player_panel, "DashboardTime", "Heure locale: --:--:--", 34)
+                local session_label = add_dashboard_label(player_panel, "DashboardSession", "Session: 00:00:00", 34)
+                local ping_label = add_dashboard_label(player_panel, "DashboardPing", "Ping: --", 34)
+                local fps_label = add_dashboard_label(player_panel, "DashboardFPS", "FPS: --", 34)
+
+                add_dashboard_label(server_panel, "DashboardServerHeading", "SERVER TRACKER", 34, accent, 12)
+                local player_count_label = add_dashboard_label(server_panel, "DashboardPlayerCount", "Joueurs: --", 34)
+                add_dashboard_label(server_panel, "DashboardPlaceId", "Place ID: " .. tostring(game.PlaceId), 34)
+                local job_id = game.JobId
+                local short_job_id = #job_id > 12 and (string.sub(job_id, 1, 12) .. "...") or job_id
+                add_dashboard_label(server_panel, "DashboardServerId", "Serveur: " .. short_job_id, 34)
+                add_dashboard_label(server_panel, "DashboardRegion", "Région: non fournie par Roblox", 40)
+                local status_label = add_dashboard_label(server_panel, "DashboardStatus", "Prêt", 42, theme.muted or rgb(178, 178, 178), 10)
 
                 add_dashboard_button("DashboardRejoin", "REJOIN SERVER", function()
                     status_label.Text = "Reconnexion au serveur..."
@@ -1073,7 +1106,6 @@
 
                 local started_at = os.clock()
                 local last_refresh = started_at
-                local last_layout = 0
                 local frame_count = 0
                 library:connection(run.RenderStepped, function()
                     frame_count = frame_count + 1
@@ -1101,19 +1133,6 @@
                         last_refresh = now
                     end
 
-                    if now - last_layout >= 0.15 then
-                        local window_left = items["window"].AbsolutePosition.X
-                        local window_right = window_left + items["window"].AbsoluteSize.X
-                        local viewport_width = camera.ViewportSize.X
-                        local preferred_x = window_right + 12
-                        if preferred_x + panel_width > viewport_width then
-                            preferred_x = window_left - panel_width - 12
-                        end
-                        local max_x = math.max(4, viewport_width - panel_width - 4)
-                        local absolute_x = math.clamp(preferred_x, 4, max_x)
-                        dashboard.Position = dim2(0, absolute_x - window_left, 0.5, 0)
-                        last_layout = now
-                    end
                 end)
             end
             
