@@ -1014,14 +1014,15 @@
                         PaddingLeft = dim(0, 12),
                         PaddingRight = dim(0, 12)
                     })
-                    library:create("UIListLayout", {
+                    return library:create("UIGridLayout", {
                         Parent = panel,
-                        Padding = dim(0, 7),
+                        CellPadding = dim2(0, 8, 0, 8),
+                        CellSize = dim2(0.5, -4, 0, 96),
                         SortOrder = Enum.SortOrder.LayoutOrder
                     })
                 end
-                make_dashboard_column(player_panel)
-                make_dashboard_column(server_panel)
+                local player_grid = make_dashboard_column(player_panel)
+                local server_grid = make_dashboard_column(server_panel)
 
                 local function add_dashboard_label(parent, name, text, height, text_color, text_size)
                     local label = library:create("TextLabel", {
@@ -1194,21 +1195,26 @@
 
                     if now - last_dashboard_layout >= 0.2 then
                         local dashboard_width = dashboard.AbsoluteSize.X
-                        local dashboard_height = dashboard.AbsoluteSize.Y
-                        if dashboard_width < 560 then
-                            local player_height = 360
-                            local server_height = 360
+                        local compact_layout = dashboard_width < 560
+                        local panel_width = compact_layout and (dashboard_width - 24) or ((dashboard_width - 40) / 2)
+                        local tile_side = math.max(88, (panel_width - 24 - 8) / 2)
+                        local panel_height = 24 + (tile_side * 4) + (8 * 3)
+                        local grid_cell_size = dim2(0.5, -4, 0, tile_side)
+                        player_grid.CellSize = grid_cell_size
+                        server_grid.CellSize = grid_cell_size
+
+                        if compact_layout then
                             player_panel.Position = dim2(0, 12, 0, 58)
-                            player_panel.Size = dim2(1, -24, 0, player_height)
-                            server_panel.Position = dim2(0, 12, 0, 58 + player_height + 12)
-                            server_panel.Size = dim2(1, -24, 0, server_height)
-                            dashboard.CanvasSize = dim2(0, 0, 0, 58 + player_height + 12 + server_height + 16)
+                            player_panel.Size = dim2(1, -24, 0, panel_height)
+                            server_panel.Position = dim2(0, 12, 0, 58 + panel_height + 12)
+                            server_panel.Size = dim2(1, -24, 0, panel_height)
+                            dashboard.CanvasSize = dim2(0, 0, 0, 58 + panel_height * 2 + 28)
                         else
                             player_panel.Position = dim2(0, 16, 0, 58)
-                            player_panel.Size = dim2(0.5, -24, 1, -74)
+                            player_panel.Size = dim2(0.5, -24, 0, panel_height)
                             server_panel.Position = dim2(0.5, 8, 0, 58)
-                            server_panel.Size = dim2(0.5, -24, 1, -74)
-                            dashboard.CanvasSize = dim2(0, 0, 0, dashboard_height)
+                            server_panel.Size = dim2(0.5, -24, 0, panel_height)
+                            dashboard.CanvasSize = dim2(0, 0, 0, 58 + panel_height + 16)
                         end
                         last_dashboard_layout = now
                     end
