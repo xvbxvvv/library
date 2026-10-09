@@ -13,7 +13,11 @@
         Logo/logo: string
         Size/size: UDim2
         FadeSpeed/fadespeed: number/float
+        Watermark/watermark: boolean
     )
+
+    -- tab icons: pass "aimbot", "eye", "misc" or "settings" as Icon, they map to rbxassetids
+    -- (see the Icons table) -- anything else is treated as a raw rbxassetid
 
     function Library:Watermark(Text: string, Logo: string)
     function Library:KeybindsList(void)
@@ -1519,6 +1523,15 @@ local Library do
             ["Value"] = { "Value.png", "https://github.com/sametexe001/images/blob/main/value.png?raw=true" },
             ["Hue"] = { "Hue.png", "https://github.com/sametexe001/images/blob/main/horizontalhue.png?raw=true" },
             ["Checkers"] = { "Checkers.png", "https://github.com/sametexe001/images/blob/main/checkers.png?raw=true" },
+            ["Logo"] = { "ezwin.jpg", "https://raw.githubusercontent.com/xvbxvvv/logo/main/0fb782bd-42a8-46bd-8a52-7df5bee0812a.jpg" },
+        },
+
+        -- tab icons: one rbxassetid per tab, swap the numbers for whatever you like
+        Icons = {
+            ["aimbot"]   = "311756276",       -- crosshair
+            ["eye"]      = "111178525804834", -- library default, replace with an eye icon
+            ["misc"]     = "9080568477801",   -- library default, replace with a misc icon
+            ["settings"] = "135215559087473", -- library default, replace with a gear icon
         },
 
         -- Ignore below
@@ -1637,14 +1650,16 @@ local Library do
         end
     end
 
-    for Index, Value in Library.Images do 
+    for Index, Value in Library.Images do
         local ImageData = Value
 
         local ImageName = ImageData[1]
         local ImageLink = ImageData[2]
-        
+
         if not isfile(Library.Folders.Assets .. "/" .. ImageName) then
-            writefile(Library.Folders.Assets .. "/" .. ImageName, game:HttpGet(ImageLink))
+            pcall(function()
+                writefile(Library.Folders.Assets .. "/" .. ImageName, game:HttpGet(ImageLink))
+            end)
         end
     end
 
@@ -2211,9 +2226,23 @@ local Library do
             ["Accent"] = FromRGB(124, 210, 55),
             ["Border"] = FromRGB(58, 58, 62)
         },
+
+        -- linoria inspired: deep charcoal panel, soft groupboxes, narrow accent
+        ["Linoria"] = {
+            ["Background"] = FromRGB(23, 23, 26),
+            ["Inline"] = FromRGB(30, 30, 34),
+            ["Shadow"] = FromRGB(0, 0, 0),
+            ["Text"] = FromRGB(219, 219, 223),
+            ["Image"] = FromRGB(219, 219, 223),
+            ["Dark Gradient"] = FromRGB(44, 44, 49),
+            ["Inactive Text"] = FromRGB(138, 138, 145),
+            ["Element"] = FromRGB(37, 37, 42),
+            ["Accent"] = FromRGB(124, 210, 55),
+            ["Border"] = FromRGB(51, 51, 57)
+        },
     }
 
-    Library.Theme = TableClone(Themes["Gamesense"])
+    Library.Theme = TableClone(Themes["Linoria"])
     Library.Themes = Themes
 
     if not isfile(Library.Folders.Directory .. "/AutoLoadConfig (do not modify this).json") then
@@ -2291,11 +2320,51 @@ local Library do
     Library.GetImage = function(self, Image)
         local ImageData = self.Images[Image]
 
-        if not ImageData then 
+        if not ImageData then
             return
         end
 
         return getcustomasset(self.Folders.Assets .. "/" .. ImageData[1])
+    end
+
+    -- window logo: uses the downloaded ezwin.jpg when it is there, otherwise falls back to an rbxassetid
+    Library.GetLogoAsset = function(self, Logo)
+        local Data = self.Images.Logo
+
+        if Data then
+            local Path = self.Folders.Assets .. "/" .. Data[1]
+
+            if isfile(Path) then
+                local Success, Result = pcall(getcustomasset, Path)
+
+                if Success and Result then
+                    return Result
+                end
+            end
+        end
+
+        if Logo and Logo ~= "" then
+            return "rbxassetid://" .. Logo
+        end
+
+        return ""
+    end
+
+    -- accepts an icon key ("aimbot", "eye", "misc", "settings"), a full rbxasset:// string or a bare asset id
+    Library.ResolveIcon = function(self, Value, Fallback)
+        if not Value then
+            return Fallback or ""
+        end
+
+        if self.Icons[Value] then
+            return "rbxassetid://" .. self.Icons[Value]
+        end
+
+        if StringFind(Value, "rbxasset") then
+            return Value
+        end
+
+        return "rbxassetid://" .. Value
     end
 
     Library.Round = function(self, Number, Float)
@@ -7015,8 +7084,8 @@ local Library do
                     Parent = Library.Holder.Instance,
                     Name = "\0",
                     BorderColor3 = FromRGB(0, 0, 0),
-                    AnchorPoint = Vector2New(0.5, 0),
-                    Position = UDim2New(0.5, 0, 0, 15),
+                    AnchorPoint = Vector2New(1, 0),
+                    Position = UDim2New(1, -15, 0, 15),
                     Size = UDim2New(0, 100, 0, 35),
                     BorderSizePixel = 0,
                     AutomaticSize = Enum.AutomaticSize.X,
@@ -7048,7 +7117,7 @@ local Library do
                     BorderColor3 = FromRGB(0, 0, 0),
                     Size = UDim2New(0, 22, 0, 22),
                     AnchorPoint = Vector2New(0, 0.5),
-                    Image = "rbxassetid://"..Logo,
+                    Image = Library:ResolveIcon(Logo),
                     BackgroundTransparency = 1,
                     Position = UDim2New(0, 7, 0.5, 0),
                     ZIndex = 2,
@@ -7263,12 +7332,25 @@ local Library do
         Library.Window = function(self, Data)
             Data = Data or { }
 
+            local Watermark = Data.Watermark
+
+            if Watermark == nil then
+                Watermark = Data.watermark
+            end
+
+            if Watermark == nil then
+                Watermark = true
+            end
+
             local Window = {
-                Name = Data.Name or Data.name or "kiwisense",
+                Name = Data.Name or Data.name or "ezwin.cc",
                 Logo = Data.Logo or Data.logo or "135215559087473",
                 FadeSpeed = Data.FadeSpeed or Data.fadespeed or 0.2,
-                Version = Data.Version or Data.version or "v1.0.0 alpha",
-                Size = not IsMobile and UDim2New(0, 659, 0, 511) or UDim2New(0, 511, 0, 459),
+                Version = Data.Version or Data.version or "v1.0.0",
+
+                Watermark = Watermark,
+
+                Size = not IsMobile and UDim2New(0, 760, 0, 528) or UDim2New(0, 511, 0, 459),
 
                 Pages = { },
                 SubPages = { },
@@ -7300,7 +7382,7 @@ local Library do
                     CornerRadius = UDimNew(0, 5)
                 })
 
-                local SidebarWidth = 46
+                local SidebarWidth = 178
 
                 -- gamesense style icon rail, left side of the window
                 Items["Sidebar"] = Instances:Create("Frame", {
@@ -7336,8 +7418,8 @@ local Library do
                     BackgroundTransparency = 1,
                     BorderSizePixel = 0,
                     ScrollBarThickness = 0,
-                    Position = UDim2New(0, 0, 0, 44),
-                    Size = UDim2New(1, 0, 1, -44),
+                    Position = UDim2New(0, 0, 0, 56),
+                    Size = UDim2New(1, 0, 1, -56),
                     ZIndex = 2,
                     CanvasSize = UDim2New(0, 0, 0, 0),
                     BackgroundColor3 = FromRGB(255, 255, 255)
@@ -7348,8 +7430,17 @@ local Library do
                     Name = "\0",
                     HorizontalAlignment = Enum.HorizontalAlignment.Center,
                     FillDirection = Enum.FillDirection.Vertical,
-                    Padding = UDimNew(0, 2),
+                    Padding = UDimNew(0, 3),
                     SortOrder = Enum.SortOrder.LayoutOrder
+                })
+
+                Instances:Create("UIPadding", {
+                    Parent = Items["Holder"].Instance,
+                    Name = "\0",
+                    PaddingBottom = UDimNew(0, 8),
+                    PaddingTop = UDimNew(0, 4),
+                    PaddingRight = UDimNew(0, 8),
+                    PaddingLeft = UDimNew(0, 8)
                 })
 
                 Items["Shadow"] = Instances:Create("ImageLabel", {
@@ -7423,30 +7514,55 @@ local Library do
                 Items["Logo"] = Instances:Create("ImageLabel", {
                     Parent = Items["Sidebar"].Instance,
                     Name = "\0",
-                    ImageColor3 = FromRGB(196, 231, 255),
+                    ImageColor3 = FromRGB(124, 210, 55),
                     ScaleType = Enum.ScaleType.Fit,
                     BorderColor3 = FromRGB(0, 0, 0),
-                    Size = UDim2New(0, 24, 0, 24),
-                    AnchorPoint = Vector2New(0.5, 0),
-                    Image = "rbxassetid://"..Window.Logo,
+                    Size = UDim2New(0, 26, 0, 26),
+                    AnchorPoint = Vector2New(0, 0),
+                    Image = Library:GetLogoAsset(Window.Logo),
                     BackgroundTransparency = 1,
-                    Position = UDim2New(0.5, 0, 0, 10),
-                    ZIndex = 2,
+                    Position = UDim2New(0, 14, 0, 12),
+                    ZIndex = 3,
                     BorderSizePixel = 0,
                     BackgroundColor3 = FromRGB(255, 255, 255)
                 })  Items["Logo"]:AddToTheme({ImageColor3 = "Accent"})
+
+                Instances:Create("UICorner", {
+                    Parent = Items["Logo"].Instance,
+                    Name = "\0",
+                    CornerRadius = UDimNew(1, 0)
+                })
+
+                Items["LogoText"] = Instances:Create("TextLabel", {
+                    Parent = Items["Sidebar"].Instance,
+                    Name = "\0",
+                    FontFace = Library.Font,
+                    AnchorPoint = Vector2New(0, 0.5),
+                    ZIndex = 3,
+                    TextSize = 16,
+                    Size = UDim2New(0, 0, 0, 18),
+                    RichText = true,
+                    TextColor3 = FromRGB(255, 255, 255),
+                    BorderColor3 = FromRGB(0, 0, 0),
+                    Text = Window.Name,
+                    BackgroundTransparency = 1,
+                    TextXAlignment = Enum.TextXAlignment.Left,
+                    Position = UDim2New(0, 48, 0, 25),
+                    BorderSizePixel = 0,
+                    AutomaticSize = Enum.AutomaticSize.X,
+                    BackgroundColor3 = FromRGB(255, 255, 255)
+                })  Items["LogoText"]:AddToTheme({TextColor3 = "Text"})
 
                 Instances:Create("Frame", {
                     Parent = Items["Sidebar"].Instance,
                     Name = "\0",
                     BorderColor3 = FromRGB(0, 0, 0),
-                    AnchorPoint = Vector2New(0.5, 0),
-                    BackgroundTransparency = 0.4,
-                    Position = UDim2New(0.5, 0, 0, 40),
-                    Size = UDim2New(1, -16, 0, 1),
-                    ZIndex = 2,
+                    Position = UDim2New(0, 12, 0, 48),
+                    Size = UDim2New(1, -24, 0, 1),
+                    ZIndex = 3,
                     BorderSizePixel = 0,
-                    BackgroundColor3 = FromRGB(32, 36, 42)
+                    BackgroundTransparency = 0.5,
+                    BackgroundColor3 = FromRGB(51, 51, 57)
                 }):AddToTheme({BackgroundColor3 = "Border"})
 
                 Items["Title"] = Instances:Create("TextLabel", {
@@ -7595,6 +7711,8 @@ local Library do
                     BackgroundColor3 = FromRGB(255, 255, 255)
                 })  Items["Watermark"]:AddToTheme({TextColor3 = "Text"})
 
+                Items["Watermark"].Instance.Visible = Window.Watermark
+
                 Instances:Create("UIStroke", {
                     Parent = Items["MainFrame"].Instance,
                     Name = "\0",
@@ -7709,7 +7827,7 @@ local Library do
                         Parent = Items["FloatingButton"].Instance,
                         BorderColor3 = FromRGB(0, 0, 0),
                         Name = "\0",
-                        Image = "rbxassetid://" .. Window.Logo,
+                        Image = Library:GetLogoAsset(Window.Logo),
                         BackgroundTransparency = 1,
                         AnchorPoint = Vector2New(0.5, 0.5),
                         Position = UDim2New(0.5, 0, 0.5, 0),
@@ -7964,17 +8082,17 @@ local Library do
                     Text = "",
                     AutoButtonColor = false,
                     BackgroundTransparency = 1,
-                    Size = UDim2New(1, -6, 0, 40),
+                    Size = UDim2New(1, 0, 0, 30),
                     BorderSizePixel = 0,
                     ZIndex = 2,
                     TextSize = 14,
-                    BackgroundColor3 = FromRGB(22, 25, 29)
-                })  Items["Inactive"]:AddToTheme({BackgroundColor3 = "Inline"})
+                    BackgroundColor3 = FromRGB(37, 37, 42)
+                })  Items["Inactive"]:AddToTheme({BackgroundColor3 = "Element"})
 
                 Instances:Create("UICorner", {
                     Parent = Items["Inactive"].Instance,
                     Name = "\0",
-                    CornerRadius = UDimNew(0, 3)
+                    CornerRadius = UDimNew(0, 5)
                 })
 
                 Items["ActiveBar"] = Instances:Create("Frame", {
@@ -7983,24 +8101,30 @@ local Library do
                     BorderColor3 = FromRGB(0, 0, 0),
                     AnchorPoint = Vector2New(0, 0.5),
                     Position = UDim2New(0, 0, 0.5, 0),
-                    Size = UDim2New(0, 2, 0, 18),
+                    Size = UDim2New(0, 3, 0, 16),
                     Visible = false,
-                    ZIndex = 2,
+                    ZIndex = 3,
                     BorderSizePixel = 0,
-                    BackgroundColor3 = FromRGB(196, 231, 255)
+                    BackgroundColor3 = FromRGB(124, 210, 55)
                 })  Items["ActiveBar"]:AddToTheme({BackgroundColor3 = "Accent"})
+
+                Instances:Create("UICorner", {
+                    Parent = Items["ActiveBar"].Instance,
+                    Name = "\0",
+                    CornerRadius = UDimNew(1, 0)
+                })
 
                 Items["Icon"] = Instances:Create("ImageLabel", {
                     Parent = Items["Inactive"].Instance,
                     Name = "\0",
-                    ImageTransparency = 0.5,
+                    ImageTransparency = 0.4,
                     BorderColor3 = FromRGB(0, 0, 0),
-                    Size = UDim2New(0, 20, 0, 20),
-                    AnchorPoint = Vector2New(0.5, 0.5),
-                    Image = "rbxassetid://"..Page.Icon,
+                    Size = UDim2New(0, 18, 0, 18),
+                    AnchorPoint = Vector2New(0, 0.5),
+                    Image = Library:ResolveIcon(Page.Icon, "rbxassetid://111178525804834"),
                     BackgroundTransparency = 1,
-                    Position = UDim2New(0.5, 0, 0.5, 0),
-                    ZIndex = 2,
+                    Position = UDim2New(0, 12, 0.5, 0),
+                    ZIndex = 3,
                     BorderSizePixel = 0,
                     BackgroundColor3 = FromRGB(255, 255, 255)
                 })  Items["Icon"]:AddToTheme({ImageColor3 = "Image"})
@@ -8009,27 +8133,22 @@ local Library do
                     Parent = Items["Inactive"].Instance,
                     Name = "\0",
                     FontFace = Library.Font,
-                    Visible = false,
+                    Visible = true,
                     Active = true,
                     AnchorPoint = Vector2New(0, 0.5),
-                    ZIndex = 2,
+                    ZIndex = 3,
                     TextSize = 14,
                     Size = UDim2New(0, 0, 0, 15),
+                    TextTransparency = 0.4,
                     TextColor3 = FromRGB(255, 255, 255),
                     BorderColor3 = FromRGB(0, 0, 0),
                     Text = Page.Name,
                     BackgroundTransparency = 1,
-                    Position = UDim2New(0, 32, 0.5, 0),
+                    Position = UDim2New(0, 40, 0.5, 0),
                     AutomaticSize = Enum.AutomaticSize.X,
                     BorderSizePixel = 0,
                     BackgroundColor3 = FromRGB(255, 255, 255)
                 })  Items["Text"]:AddToTheme({TextColor3 = "Text"})
-
-                Instances:Create("UIPadding", {
-                    Parent = Items["Inactive"].Instance,
-                    Name = "\0",
-                    PaddingRight = UDimNew(0, 7)
-                })
 
                 if not Page.SubPages then
                     for Index = 1, Page.Columns do 
@@ -8140,17 +8259,19 @@ local Library do
                 Debounce = true 
 
                 if Bool then
-                    Items["ActiveBar"].Instance.Visible = true 
+                    Items["ActiveBar"].Instance.Visible = true
                     Items["Inactive"]:Tween(nil, {BackgroundTransparency = 0})
                     Items["Icon"]:ChangeItemTheme({ImageColor3 = "Accent"})
                     Items["Icon"]:Tween(nil, {ImageColor3 = Library.Theme.Accent, ImageTransparency = 0})
+                    Items["Text"]:Tween(nil, {TextTransparency = 0})
 
                     Library.CurrentPage = Page
                 else
-                    Items["ActiveBar"].Instance.Visible = false 
+                    Items["ActiveBar"].Instance.Visible = false
                     Items["Inactive"]:Tween(nil, {BackgroundTransparency = 1})
                     Items["Icon"]:ChangeItemTheme({ImageColor3 = "Image"})
-                    Items["Icon"]:Tween(nil, {ImageColor3 = Library.Theme.Image, ImageTransparency = 0.5}) 
+                    Items["Icon"]:Tween(nil, {ImageColor3 = Library.Theme.Image, ImageTransparency = 0.4})
+                    Items["Text"]:Tween(nil, {TextTransparency = 0.4})
                 end
 
                 local Descendants = Items["PageContent"].Instance:GetDescendants()
@@ -8258,7 +8379,7 @@ local Library do
                     BorderColor3 = FromRGB(0, 0, 0),
                     Size = UDim2New(0, 14, 0, 14),
                     AnchorPoint = Vector2New(0, 0.5),
-                    Image = "rbxassetid://"..SubPage.Icon,
+                    Image = Library:ResolveIcon(SubPage.Icon, "rbxassetid://9080568477801"),
                     BackgroundTransparency = 1,
                     Position = UDim2New(0, 4, 0.5, 0),
                     ZIndex = 2,
@@ -9203,18 +9324,47 @@ local Library do
             }
 
             local Items = { } do
-                -- gamesense groupbox: no filled box, just a small title, a hairline under it, then the controls
+                -- linoria style groupbox: filled rounded box, small title, hairline, then the controls
                 Items["Section"] = Instances:Create("Frame", {
                     Parent = Section.Page.ColumnsData[Section.Side].Instance,
                     Name = "\0",
                     BorderSizePixel = 0,
-                    Size = UDim2New(1, 0, 0, 30),
+                    Size = UDim2New(1, 0, 0, 52),
                     BorderColor3 = FromRGB(0, 0, 0),
                     ZIndex = 2,
                     AutomaticSize = Enum.AutomaticSize.Y,
-                    BackgroundTransparency = 1,
-                    BackgroundColor3 = FromRGB(22, 25, 29)
+                    BackgroundColor3 = FromRGB(37, 37, 42)
+                })  Items["Section"]:AddToTheme({BackgroundColor3 = "Element"})
+
+                Instances:Create("UICorner", {
+                    Parent = Items["Section"].Instance,
+                    Name = "\0",
+                    CornerRadius = UDimNew(0, 6)
                 })
+
+                Instances:Create("UIStroke", {
+                    Parent = Items["Section"].Instance,
+                    Name = "\0",
+                    Color = FromRGB(51, 51, 57),
+                    Transparency = 0.6,
+                    ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+                }):AddToTheme({Color = "Border"})
+
+                Items["Icon"] = Instances:Create("ImageLabel", {
+                    Parent = Items["Section"].Instance,
+                    Name = "\0",
+                    ImageColor3 = FromRGB(124, 210, 55),
+                    ScaleType = Enum.ScaleType.Fit,
+                    BorderColor3 = FromRGB(0, 0, 0),
+                    Size = UDim2New(0, 15, 0, 15),
+                    AnchorPoint = Vector2New(0, 0.5),
+                    Image = "rbxassetid://"..Section.Icon,
+                    BackgroundTransparency = 1,
+                    Position = UDim2New(0, 12, 0, 15),
+                    ZIndex = 2,
+                    BorderSizePixel = 0,
+                    BackgroundColor3 = FromRGB(255, 255, 255)
+                })  Items["Icon"]:AddToTheme({ImageColor3 = "Accent"})
 
                 Items["Title"] = Instances:Create("TextLabel", {
                     Parent = Items["Section"].Instance,
@@ -9224,12 +9374,12 @@ local Library do
                     BorderColor3 = FromRGB(0, 0, 0),
                     Text = Section.Name,
                     BorderSizePixel = 0,
-                    Size = UDim2New(1, 0, 0, 13),
+                    Size = UDim2New(1, -50, 0, 15),
                     BackgroundTransparency = 1,
                     TextXAlignment = Enum.TextXAlignment.Left,
-                    Position = UDim2New(0, 0, 0, 4),
+                    Position = UDim2New(0, 34, 0, 8),
                     ZIndex = 2,
-                    TextSize = 13,
+                    TextSize = 14,
                     BackgroundColor3 = FromRGB(255, 255, 255)
                 })  Items["Title"]:AddToTheme({TextColor3 = "Text"})
 
@@ -9237,12 +9387,12 @@ local Library do
                     Parent = Items["Section"].Instance,
                     Name = "\0",
                     BorderColor3 = FromRGB(0, 0, 0),
-                    Position = UDim2New(0, 0, 0, 22),
-                    Size = UDim2New(1, 0, 0, 1),
+                    Position = UDim2New(0, 12, 0, 30),
+                    Size = UDim2New(1, -24, 0, 1),
                     ZIndex = 2,
                     BorderSizePixel = 0,
-                    BackgroundTransparency = 0.4,
-                    BackgroundColor3 = FromRGB(32, 36, 42)
+                    BackgroundTransparency = 0.5,
+                    BackgroundColor3 = FromRGB(51, 51, 57)
                 }):AddToTheme({BackgroundColor3 = "Border"})
 
                 Items["Content"] = Instances:Create("Frame", {
@@ -9251,17 +9401,23 @@ local Library do
                     BorderColor3 = FromRGB(0, 0, 0),
                     BorderSizePixel = 0,
                     BackgroundTransparency = 1,
-                    Position = UDim2New(0, 0, 0, 30),
-                    Size = UDim2New(1, 0, 0, 0),
+                    Position = UDim2New(0, 12, 0, 38),
+                    Size = UDim2New(1, -24, 0, 0),
                     ZIndex = 2,
                     AutomaticSize = Enum.AutomaticSize.Y,
                     BackgroundColor3 = FromRGB(255, 255, 255)
                 })
 
+                Instances:Create("UIPadding", {
+                    Parent = Items["Section"].Instance,
+                    Name = "\0",
+                    PaddingBottom = UDimNew(0, 10)
+                })
+
                 Instances:Create("UIListLayout", {
                     Parent = Items["Content"].Instance,
                     Name = "\0",
-                    Padding = UDimNew(0, 6),
+                    Padding = UDimNew(0, 7),
                     SortOrder = Enum.SortOrder.LayoutOrder
                 })
             end
@@ -10130,6 +10286,43 @@ local Library do
         end
     end
 end 
+
+--[[
+    ============================================================
+    example -- copy/paste this after your loadstring
+    ============================================================
+
+    local Window = Library:Window({
+        Name = "ezwin.cc",
+        Version = "v1.0.0",
+        Columns = 2,
+        Watermark = true,
+        Logo = "0fb782bd-42a8-46bd-8a52-7df5bee0812a", -- optional, falls back to the built in jpg
+    })
+
+    Library:Watermark("ezwin.cc", "0fb782bd-42a8-46bd-8a52-7df5bee0812a")
+    Library:KeybindsList()
+
+    -- Icon accepts "aimbot", "eye", "misc", "settings" or any rbxassetid
+    local Aimbot = Window:Page({ Name = "aimbot", Icon = "aimbot", Columns = 2 })
+    local Visuals = Window:Page({ Name = "visuals", Icon = "eye", Columns = 2 })
+    local Misc = Window:Page({ Name = "misc", Icon = "misc", Columns = 2 })
+    local Settings = Window:Page({ Name = "settings", Icon = "settings", Columns = 2 })
+
+    Aimbot:Section({ Name = "aimbot", Side = 1 }):Toggle({
+        Name = "enabled", Default = false, Flag = "aimbot_enabled",
+        Callback = function(Value) end,
+    }):Keybind({ Name = "aim key", Mode = "Hold", Default = Enum.KeyCode.E })
+
+    Visuals:Section({ Name = "player esp", Side = 1 }):Toggle({
+        Name = "boxes", Default = false, Flag = "esp_boxes",
+        Callback = function(Value) end,
+    })
+
+    -- switch the default theme with:
+    -- Library:ChangeTheme("Accent", Color3.fromRGB(124, 210, 55))
+    -- available presets: Gamesense, Gamesense Dark, Preset, Halloween, Aqua, One Tap
+]]
 
 getgenv().Library = Library
 return Library
