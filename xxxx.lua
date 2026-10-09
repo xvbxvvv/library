@@ -8533,7 +8533,13 @@ local Library do
 
             Page.Items = Items
             TableInsert(Page.Window.Pages, Page)
-            return setmetatable(Page, Library.Pages)
+            local Result = setmetatable(Page, Library.Pages)
+
+            if Page.Name ~= "settings" and not Page.Window.SettingsPage then
+                Library:SettingsPanel(Page.Window)
+            end
+
+            return Result
         end
 
         Library.Pages.SubPage = function(self, Data)
@@ -10524,11 +10530,11 @@ end
     Library:Watermark("ezwin.cc", "0fb782bd-42a8-46bd-8a52-7df5bee0812a")
     Library:KeybindsList()
 
-    -- Icon accepts "aimbot", "eye", "misc", "settings" or any rbxassetid
+    -- Settings is added automatically after the first app page.
+    -- Icon accepts "aimbot", "eye", "misc" or any rbxassetid
     local Aimbot = Window:Page({ Name = "aimbot", Icon = "aimbot", Columns = 2 })
     local Visuals = Window:Page({ Name = "visuals", Icon = "eye", Columns = 2 })
     local Misc = Window:Page({ Name = "misc", Icon = "misc", Columns = 2 })
-    local Settings = Window:Page({ Name = "settings", Icon = "settings", Columns = 2 })
 
     Aimbot:Section({ Name = "aimbot", Side = 1 }):Toggle({
         Name = "enabled", Default = false, Flag = "aimbot_enabled",
