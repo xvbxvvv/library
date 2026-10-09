@@ -2816,7 +2816,7 @@ local Library do
         })
 
         ------------------------------------------------ themes
-        local Themes = Page:Section({ Name = "theme", Side = 1 })
+        local Themes = Page:Section({ Name = "theme", Side = 2 })
 
         local PresetDropdown = Themes:Dropdown({
             Name = "preset",
