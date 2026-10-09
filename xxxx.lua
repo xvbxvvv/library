@@ -1531,7 +1531,7 @@ local Library do
             ["aimbot"]   = "311756276",       -- crosshair
             ["eye"]      = "111178525804834", -- library default, replace with an eye icon
             ["misc"]     = "9080568477801",   -- library default, replace with a misc icon
-            ["settings"] = "135215559087473", -- library default, replace with a gear icon
+            ["settings"] = "99473719385675",  -- gear
         },
 
         -- Ignore below
@@ -1772,11 +1772,9 @@ local Library do
                 NewItem.Instance[Property] = Value
             end
 
-            -- flat obsidian look: kill every gradient and square every corner globally
+            -- flat obsidian look: kill every gradient globally, but keep the rounded corners
             if Class == "UIGradient" then
                 NewItem.Instance.Enabled = false
-            elseif Class == "UICorner" then
-                NewItem.Instance.CornerRadius = UDimNew(0, 0)
             end
 
             return NewItem
@@ -2696,12 +2694,259 @@ local Library do
         return FromHSV(Hue, Saturation, Value * Increment)
     end
 
+    -- permanent settings page: theme manager + config manager + full menu customisation
+    Library.SettingsPanel = function(self, Window)
+        if Window.SettingsPage then
+            return Window.SettingsPage
+        end
+
+        local ThemeNames = { }
+
+        for Name in self.Themes do
+            ThemeNames[#ThemeNames + 1] = Name
+        end
+
+        table.sort(ThemeNames)
+
+        local Page = Window:Page({
+            Name = "settings",
+            Icon = "settings",
+            Columns = 2,
+        })
+
+        -- keep it last in the icon rail whatever order it gets created in
+        Page.Items["Inactive"].Instance.LayoutOrder = 999
+
+        Window.SettingsPage = Page
+
+        ------------------------------------------------ configs
+        local Configs = Page:Section({ Name = "configs", Side = 1 })
+
+        Configs:Dropdown({
+            Name = "config",
+            Items = { "none" },
+            Default = "none",
+            Flag = "settings_config_list",
+            Callback = function() end,
+        })
+
+        Configs:Textbox({
+            Name = "config name",
+            Default = "default",
+            Placeholder = "config name",
+            Flag = "settings_config_name",
+            Callback = function() end,
+        })
+
+        Configs:Button({
+            Name = "save config",
+            Callback = function()
+                local Name = Library.Flags["settings_config_name"]
+
+                if not Name or Name == "" then
+                    Library:Notification({
+                        Name = "Error",
+                        Description = "Give the config a name first",
+                        Duration = 4,
+                        Icon = "97118059177470",
+                        IconColor = FromRGB(255, 120, 120)
+                    })
+                    return
+                end
+
+                writefile(Library.Folders.Configs .. "/" .. Name .. ".json", Library:GetConfig())
+
+                Library:Notification({
+                    Name = "Success",
+                    Description = "Saved config: " .. Name,
+                    Duration = 4,
+                    Icon = "116339777575852",
+                    IconColor = FromRGB(52, 255, 164)
+                })
+
+                local Dropdown = getgenv().Options["settings_config_list"]
+                if Dropdown then Library:RefreshConfigsList(Dropdown) end
+            end,
+        })
+
+        Configs:Button({
+            Name = "load config",
+            Callback = function()
+                local Name = Library.Flags["settings_config_name"]
+
+                if not Name or Name == "" then return end
+
+                local Path = Library.Folders.Configs .. "/" .. Name .. ".json"
+
+                if not isfile(Path) then
+                    Library:Notification({
+                        Name = "Error",
+                        Description = "Config not found: " .. Name,
+                        Duration = 4,
+                        Icon = "97118059177470",
+                        IconColor = FromRGB(255, 120, 120)
+                    })
+                    return
+                end
+
+                Library:LoadConfig(readfile(Path))
+            end,
+        })
+
+        Configs:Button({
+            Name = "delete config",
+            Callback = function()
+                local Name = Library.Flags["settings_config_name"]
+
+                if not Name or Name == "" then return end
+
+                Library:DeleteConfig(Name)
+
+                local Dropdown = getgenv().Options["settings_config_list"]
+                if Dropdown then Library:RefreshConfigsList(Dropdown) end
+            end,
+        })
+
+        ------------------------------------------------ themes
+        local Themes = Page:Section({ Name = "theme", Side = 1 })
+
+        local PresetDropdown = Themes:Dropdown({
+            Name = "preset",
+            Items = ThemeNames,
+            Default = "Nebula",
+            Flag = "settings_theme_preset",
+            Callback = function(Value)
+                local Preset = Library.Themes[Value]
+
+                if not Preset then return end
+
+                for Key, Color in Preset do
+                    Library:ChangeTheme(Key, Color)
+                end
+            end,
+        })
+
+        Themes:Colorpicker({
+            Name = "background",
+            Default = Library.Theme["Background"],
+            Flag = "settings_theme_background",
+            Callback = function(Color, Alpha)
+                Library:ChangeTheme("Background", Color)
+            end,
+        })
+
+        Themes:Colorpicker({
+            Name = "inline",
+            Default = Library.Theme["Inline"],
+            Flag = "settings_theme_inline",
+            Callback = function(Color, Alpha)
+                Library:ChangeTheme("Inline", Color)
+            end,
+        })
+
+        Themes:Colorpicker({
+            Name = "element",
+            Default = Library.Theme["Element"],
+            Flag = "settings_theme_element",
+            Callback = function(Color, Alpha)
+                Library:ChangeTheme("Element", Color)
+            end,
+        })
+
+        Themes:Colorpicker({
+            Name = "accent",
+            Default = Library.Theme["Accent"],
+            Flag = "settings_theme_accent",
+            Callback = function(Color, Alpha)
+                Library:ChangeTheme("Accent", Color)
+            end,
+        })
+
+        Themes:Colorpicker({
+            Name = "border",
+            Default = Library.Theme["Border"],
+            Flag = "settings_theme_border",
+            Callback = function(Color, Alpha)
+                Library:ChangeTheme("Border", Color)
+            end,
+        })
+
+        Themes:Colorpicker({
+            Name = "text",
+            Default = Library.Theme["Text"],
+            Flag = "settings_theme_text",
+            Callback = function(Color, Alpha)
+                Library:ChangeTheme("Text", Color)
+            end,
+        })
+
+        Themes:Button({
+            Name = "save theme",
+            Callback = function()
+                Library:SaveTheme(Library.Flags["settings_config_name"] or "theme")
+            end,
+        })
+
+        ------------------------------------------------ menu
+        local Menu = Page:Section({ Name = "menu", Side = 2 })
+
+        Menu:Colorpicker({
+            Name = "accent color",
+            Default = Library.Theme["Accent"],
+            Flag = "settings_menu_accent",
+            Callback = function(Color, Alpha)
+                Library:ChangeTheme("Accent", Color)
+            end,
+        })
+
+        Menu:Slider({
+            Name = "fade speed",
+            Min = 0.05,
+            Max = 1,
+            Default = Window.FadeSpeed,
+            Decimals = 2,
+            Suffix = "s",
+            Flag = "settings_menu_fade",
+            Callback = function(Value)
+                Window.FadeSpeed = Value
+            end,
+        })
+
+        Menu:Keybind({
+            Name = "menu key",
+            Mode = "Toggle",
+            Default = Enum.KeyCode.RightShift,
+            Flag = "settings_menu_key",
+            Callback = function(Value)
+                Library.MenuKeybind = Value and "RightShift" or Library.MenuKeybind
+            end,
+        })
+
+        Menu:Button({
+            Name = "unload menu",
+            Callback = function()
+                Library:Unload()
+            end,
+        })
+
+        ------------------------------------------------ refresh the config dropdown
+        local ConfigDropdown = getgenv().Options["settings_config_list"]
+
+        if ConfigDropdown then
+            Library:RefreshConfigsList(ConfigDropdown)
+        end
+
+        return Page
+    end
+
     local Components = { } do
         Components.Toggle = function(Data)
-            local Toggle = { 
+            local Toggle = {
                 Value = false,
                 Flag = Data.Flag
             }
+
+            local ToggleOff = FromRGB(48, 48, 53)
 
             local Items = { } do
                 Items["Toggle"] = Instances:Create("TextButton", {
@@ -2745,16 +2990,24 @@ local Library do
                     BorderColor3 = FromRGB(0, 0, 0),
                     AnchorPoint = Vector2New(1, 0.5),
                     Position = UDim2New(1, 0, 0.5, 0),
-                    Size = UDim2New(0, 20, 0, 20),
+                    Size = UDim2New(0, 22, 0, 22),
                     ZIndex = 2,
                     BorderSizePixel = 0,
-                    BackgroundColor3 = FromRGB(34, 39, 45)
+                    BackgroundColor3 = FromRGB(48, 48, 53)
                 })  Items["Indicator"]:AddToTheme({BackgroundColor3 = "Element"})
 
                 Instances:Create("UICorner", {
                     Parent = Items["Indicator"].Instance,
                     Name = "\0",
-                    CornerRadius = UDimNew(0, 4)
+                    CornerRadius = UDimNew(0, 6)
+                })
+
+                Instances:Create("UIStroke", {
+                    Parent = Items["Indicator"].Instance,
+                    Name = "\0",
+                    Color = FromRGB(88, 88, 96),
+                    Thickness = 1,
+                    ApplyStrokeMode = Enum.ApplyStrokeMode.Border
                 })
 
                 Items["Inline"] = Instances:Create("Frame", {
@@ -2765,7 +3018,7 @@ local Library do
                     BorderColor3 = FromRGB(0, 0, 0),
                     ZIndex = 2,
                     BorderSizePixel = 0,
-                    BackgroundColor3 = FromRGB(34, 39, 45)
+                    BackgroundColor3 = FromRGB(48, 48, 53)
                 })  Items["Inline"]:AddToTheme({BackgroundColor3 = "Element"})
 
                 Instances:Create("UICorner", {
@@ -2846,14 +3099,14 @@ local Library do
                     Items["Indicator"]:ChangeItemTheme({BackgroundColor3 = "Element"})
                     Items["Inline"]:ChangeItemTheme({BackgroundColor3 = "Element"})
 
-                    Items["Indicator"]:Tween(nil, {BackgroundColor3 = Library.Theme.Element})
-                    Items["Inline"]:Tween(nil, {BackgroundColor3 = Library.Theme.Element})
+                    Items["Indicator"]:Tween(nil, {BackgroundColor3 = ToggleOff})
+                    Items["Inline"]:Tween(nil, {BackgroundColor3 = ToggleOff})
 
                     Items["Check"]:Tween(nil, {ImageTransparency = 1})
                     Items["Text"]:Tween(nil, {TextTransparency = 0.5})
                 end
 
-                if Data.Callback then 
+                if Data.Callback then
                     Library:SafeCall(Data.Callback, Bool)
                 end
             end
@@ -2864,14 +3117,14 @@ local Library do
 
             Items["Toggle"]:OnHover(function()
                 if Toggle.Value then return end
-                Items["Indicator"]:Tween(nil, {BackgroundColor3 = Library:GetLighterColor(Library.Theme.Element, 1.45)})
-                Items["Inline"]:Tween(nil, {BackgroundColor3 = Library:GetLighterColor(Library.Theme.Element, 1.45)})
+                Items["Indicator"]:Tween(nil, {BackgroundColor3 = Library:GetLighterColor(ToggleOff, 1.45)})
+                Items["Inline"]:Tween(nil, {BackgroundColor3 = Library:GetLighterColor(ToggleOff, 1.45)})
             end)
 
             Items["Toggle"]:OnHoverLeave(function()
                 if Toggle.Value then return end
-                Items["Indicator"]:Tween(nil, {BackgroundColor3 = Library.Theme.Element})
-                Items["Inline"]:Tween(nil, {BackgroundColor3 = Library.Theme.Element})
+                Items["Indicator"]:Tween(nil, {BackgroundColor3 = ToggleOff})
+                Items["Inline"]:Tween(nil, {BackgroundColor3 = ToggleOff})
             end)
 
             getgenv().Options[Toggle.Flag] = Toggle
