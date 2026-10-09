@@ -1772,6 +1772,13 @@ local Library do
                 NewItem.Instance[Property] = Value
             end
 
+            -- flat obsidian look: kill every gradient and square every corner globally
+            if Class == "UIGradient" then
+                NewItem.Instance.Enabled = false
+            elseif Class == "UICorner" then
+                NewItem.Instance.CornerRadius = UDimNew(0, 0)
+            end
+
             return NewItem
         end
 
@@ -1941,7 +1948,7 @@ local Library do
                 BorderSizePixel = 0,
                 ZIndex = 2,
                 TextTransparency = 1,
-                TextSize = 14,
+                TextSize = 10,
                 BackgroundColor3 = FromRGB(255, 255, 255)
             })
 
@@ -2139,11 +2146,11 @@ local Library do
             end
         end
 
-        CustomFont:New("Inter", 200, "Regular", {
-            Url = "https://github.com/sametexe001/luas/raw/refs/heads/main/fonts/InterSemibold.ttf"
+        CustomFont:New("Minecraftia", 400, "Regular", {
+            Url = "https://github.com/i77lhm/storage/raw/refs/heads/main/fonts/Minecraftia-Regular.ttf"
         })
 
-        Library.Font = CustomFont:Get("Inter")
+        Library.Font = CustomFont:Get("Minecraftia")
     end
 
     local Themes = {
@@ -2240,9 +2247,23 @@ local Library do
             ["Accent"] = FromRGB(124, 210, 55),
             ["Border"] = FromRGB(51, 51, 57)
         },
+
+        -- monolith/nebula: pure black & grey, no accent, pixel font
+        ["Nebula"] = {
+            ["Background"] = FromRGB(12, 12, 12),
+            ["Inline"] = FromRGB(14, 14, 14),
+            ["Shadow"] = FromRGB(0, 0, 0),
+            ["Text"] = FromRGB(178, 178, 178),
+            ["Image"] = FromRGB(128, 128, 128),
+            ["Dark Gradient"] = FromRGB(93, 93, 93),
+            ["Inactive Text"] = FromRGB(128, 128, 128),
+            ["Element"] = FromRGB(8, 8, 8),
+            ["Accent"] = FromRGB(255, 255, 255),
+            ["Border"] = FromRGB(0, 0, 0)
+        },
     }
 
-    Library.Theme = TableClone(Themes["Linoria"])
+    Library.Theme = TableClone(Themes["Nebula"])
     Library.Themes = Themes
 
     if not isfile(Library.Folders.Directory .. "/AutoLoadConfig (do not modify this).json") then
@@ -2695,7 +2716,7 @@ local Library do
                     BorderSizePixel = 0,
                     Size = UDim2New(1, 0, 0, 20),
                     ZIndex = 2,
-                    TextSize = 14,
+                    TextSize = 10,
                     BackgroundColor3 = FromRGB(255, 255, 255)
                 })
 
@@ -2714,7 +2735,7 @@ local Library do
                     Position = UDim2New(0, 0, 0.5, 0),
                     BorderColor3 = FromRGB(0, 0, 0),
                     ZIndex = 2,
-                    TextSize = 14,
+                    TextSize = 10,
                     BackgroundColor3 = FromRGB(255, 255, 255)
                 })  Items["Text"]:AddToTheme({TextColor3 = "Text"})
 
@@ -2917,7 +2938,7 @@ local Library do
                     Size = UDim2New(0, 0, 0, 15),
                     BorderSizePixel = 0,
                     ZIndex = 2,
-                    TextSize = 14,
+                    TextSize = 10,
                     BackgroundColor3 = FromRGB(255, 255, 255)
                 })  Items["Text"]:AddToTheme({TextColor3 = "Text"})
 
@@ -2965,7 +2986,7 @@ local Library do
                     TextTruncate = Enum.TextTruncate.AtEnd,
                     BorderSizePixel = 0,
                     ZIndex = 2,
-                    TextSize = 14,
+                    TextSize = 10,
                     BackgroundColor3 = FromRGB(255, 255, 255)
                 })  Items["Value"]:AddToTheme({TextColor3 = "Text"})
 
@@ -2999,7 +3020,7 @@ local Library do
                     Visible = false,
                     BorderSizePixel = 0,
                     ZIndex = 5,
-                    TextSize = 14,
+                    TextSize = 10,
                     BackgroundColor3 = FromRGB(22, 25, 29)
                 })  Items["OptionHolder"]:AddToTheme({BackgroundColor3 = "Inline"})
 
@@ -3119,7 +3140,7 @@ local Library do
                     AnchorPoint = Vector2New(0, 0.5),
                     PlaceholderColor3 = FromRGB(185, 185, 185),
                     PlaceholderText = "search",
-                    TextSize = 14,
+                    TextSize = 10,
                     Size = UDim2New(1, -45, 0, 15),
                     ClipsDescendants = true,
                     BorderColor3 = FromRGB(0, 0, 0),
@@ -3209,7 +3230,7 @@ local Library do
                     BorderSizePixel = 0,
                     Size = UDim2New(1, -5, 0, 25),
                     ZIndex = 5,
-                    TextSize = 14,
+                    TextSize = 10,
                     BackgroundColor3 = FromRGB(16, 18, 21)
                 })  OptionButton:AddToTheme({BackgroundColor3 = "Background"})
 
@@ -3244,7 +3265,7 @@ local Library do
                     TextTransparency = 0.5,
                     AnchorPoint = Vector2New(0, 0.5),
                     ZIndex = 5,
-                    TextSize = 14,
+                    TextSize = 10,
                     Size = UDim2New(0, 0, 0, 15),
                     TextColor3 = FromRGB(255, 255, 255),
                     BorderColor3 = FromRGB(0, 0, 0),
@@ -3557,7 +3578,7 @@ local Library do
                     Position = UDim2New(1, -25, 0, 0),
                     Size = UDim2New(0, 20, 0, 20),
                     ZIndex = 2,
-                    TextSize = 14,
+                    TextSize = 10,
                     BackgroundColor3 = FromRGB(255, 125, 32)
                 })
 
@@ -3670,7 +3691,7 @@ local Library do
                     Position = UDim2New(0, 8, 0, 8),
                     Size = UDim2New(1, -16, 1, -125),
                     ZIndex = 2,
-                    TextSize = 14,
+                    TextSize = 10,
                     BackgroundColor3 = FromRGB(255, 125, 32)
                 })
 
@@ -3804,7 +3825,7 @@ local Library do
                     Position = UDim2New(0, 8, 1, -63),
                     Size = UDim2New(1, -16, 0, 18),
                     ZIndex = 2,
-                    TextSize = 14,
+                    TextSize = 10,
                     BackgroundColor3 = FromRGB(255, 125, 32)
                 })
 
@@ -3891,7 +3912,7 @@ local Library do
                         Size = UDim2New(0, 0, 0, 15),
                         BorderSizePixel = 0,
                         ZIndex = 2,
-                        TextSize = 14,
+                        TextSize = 10,
                         BackgroundColor3 = FromRGB(255, 255, 255)
                     })  DropdownItems["Text"]:AddToTheme({TextColor3 = "Text"})
 
@@ -3939,7 +3960,7 @@ local Library do
                         TextTruncate = Enum.TextTruncate.AtEnd,
                         BorderSizePixel = 0,
                         ZIndex = 2,
-                        TextSize = 14,
+                        TextSize = 10,
                         BackgroundColor3 = FromRGB(255, 255, 255)
                     })  DropdownItems["Value"]:AddToTheme({TextColor3 = "Text"})
 
@@ -3973,7 +3994,7 @@ local Library do
                         Position = UDim2New(0, 0, 1, 5),
                         BorderSizePixel = 0,
                         ZIndex = 5,
-                        TextSize = 14,
+                        TextSize = 10,
                         BackgroundColor3 = FromRGB(22, 25, 29)
                     })  DropdownItems["OptionHolder"]:AddToTheme({BackgroundColor3 = "Inline"})
 
@@ -4038,7 +4059,7 @@ local Library do
                         BorderSizePixel = 0,
                         Size = UDim2New(1, 0, 0, 25),
                         ZIndex = 5,
-                        TextSize = 14,
+                        TextSize = 10,
                         BackgroundColor3 = FromRGB(16, 18, 21)
                     })  OptionButton:AddToTheme({BackgroundColor3 = "Background"})
 
@@ -4073,7 +4094,7 @@ local Library do
                         TextTransparency = 0.5,
                         AnchorPoint = Vector2New(0, 0.5),
                         ZIndex = 5,
-                        TextSize = 14,
+                        TextSize = 10,
                         Size = UDim2New(0, 0, 0, 15),
                         TextColor3 = FromRGB(255, 255, 255),
                         BorderColor3 = FromRGB(0, 0, 0),
@@ -4654,7 +4675,7 @@ local Library do
                     Position = UDim2New(1, Data.IsToggle and -25 or 0, 0.5, 0),
                     BorderColor3 = FromRGB(0, 0, 0),
                     ZIndex = 2,
-                    TextSize = 14,
+                    TextSize = 10,
                     BackgroundColor3 = FromRGB(255, 255, 255)
                 })  Items["KeyButton"]:AddToTheme({TextColor3 = "Text"})
 
@@ -4719,7 +4740,7 @@ local Library do
                         Size = UDim2New(0, 0, 0, 15),
                         BorderSizePixel = 0,
                         ZIndex = 2,
-                        TextSize = 14,
+                        TextSize = 10,
                         BackgroundColor3 = FromRGB(255, 255, 255)
                     })  DropdownItems["Text"]:AddToTheme({TextColor3 = "Text"})
 
@@ -4767,7 +4788,7 @@ local Library do
                         TextTruncate = Enum.TextTruncate.AtEnd,
                         BorderSizePixel = 0,
                         ZIndex = 2,
-                        TextSize = 14,
+                        TextSize = 10,
                         BackgroundColor3 = FromRGB(255, 255, 255)
                     })  DropdownItems["Value"]:AddToTheme({TextColor3 = "Text"})
 
@@ -4801,7 +4822,7 @@ local Library do
                         Position = UDim2New(0, 0, 1, 5),
                         BorderSizePixel = 0,
                         ZIndex = 5,
-                        TextSize = 14,
+                        TextSize = 10,
                         BackgroundColor3 = FromRGB(22, 25, 29)
                     })  DropdownItems["OptionHolder"]:AddToTheme({BackgroundColor3 = "Inline"})
 
@@ -4866,7 +4887,7 @@ local Library do
                         BorderSizePixel = 0,
                         Size = UDim2New(1, 0, 0, 25),
                         ZIndex = 5,
-                        TextSize = 14,
+                        TextSize = 10,
                         BackgroundColor3 = FromRGB(16, 18, 21)
                     })  OptionButton:AddToTheme({BackgroundColor3 = "Background"})
 
@@ -4901,7 +4922,7 @@ local Library do
                         TextTransparency = 0.5,
                         AnchorPoint = Vector2New(0, 0.5),
                         ZIndex = 5,
-                        TextSize = 14,
+                        TextSize = 10,
                         Size = UDim2New(0, 0, 0, 15),
                         TextColor3 = FromRGB(255, 255, 255),
                         BorderColor3 = FromRGB(0, 0, 0),
@@ -5134,7 +5155,7 @@ local Library do
                         Position = UDim2New(0, 8, 0, 65),
                         Size = UDim2New(1, -16, 0, 20),
                         ZIndex = 2,
-                        TextSize = 14,
+                        TextSize = 10,
                         BackgroundColor3 = FromRGB(255, 255, 255)
                     })
 
@@ -5153,7 +5174,7 @@ local Library do
                         Position = UDim2New(0, 0, 0.5, 0),
                         BorderColor3 = FromRGB(0, 0, 0),
                         ZIndex = 2,
-                        TextSize = 14,
+                        TextSize = 10,
                         BackgroundColor3 = FromRGB(255, 255, 255)
                     })  ToggleItems["Text"]:AddToTheme({TextColor3 = "Text"})
 
@@ -5621,7 +5642,7 @@ local Library do
                     FontFace = Library.Font,
                     AnchorPoint = Vector2New(0, 0.5),
                     ZIndex = 2,
-                    TextSize = 14,
+                    TextSize = 10,
                     Size = UDim2New(0, 0, 0, 15),
                     RichText = true,
                     TextColor3 = FromRGB(255, 255, 255),
@@ -6461,7 +6482,7 @@ local Library do
                     FontFace = Library.Font,
                     AnchorPoint = Vector2New(0, 0.5),
                     ZIndex = 2,
-                    TextSize = 14,
+                    TextSize = 10,
                     Size = UDim2New(0, 0, 0, 15),
                     RichText = true,
                     TextColor3 = FromRGB(255, 255, 255),
@@ -6533,7 +6554,7 @@ local Library do
                     TextXAlignment = Enum.TextXAlignment.Right,
                     BorderSizePixel = 0,
                     ZIndex = 2,
-                    TextSize = 14,
+                    TextSize = 10,
                     BackgroundColor3 = FromRGB(255, 255, 255)
                 })
 
@@ -6575,7 +6596,7 @@ local Library do
                     CursorPosition = -1,
                     PlaceholderColor3 = FromRGB(185, 185, 185),
                     PlaceholderText = "Send message",
-                    TextSize = 14,
+                    TextSize = 10,
                     Size = UDim2New(1, -45, 1, 0),
                     TextColor3 = FromRGB(255, 255, 255),
                     BorderColor3 = FromRGB(0, 0, 0),
@@ -6611,7 +6632,7 @@ local Library do
                     Position = UDim2New(1, 0, 0, 0),
                     Size = UDim2New(0, 35, 1, 0),
                     BorderSizePixel = 0,
-                    TextSize = 14,
+                    TextSize = 10,
                     BackgroundColor3 = FromRGB(34, 39, 45)
                 })  Items["SendMessageButton"]:AddToTheme({BackgroundColor3 = "Element"})
 
@@ -6717,7 +6738,7 @@ local Library do
                             Position = UDim2New(0, 38, 0, 0),
                             BorderSizePixel = 0,
                             AutomaticSize = Enum.AutomaticSize.X,
-                            TextSize = 14,
+                            TextSize = 10,
                             BackgroundColor3 = FromRGB(255, 255, 255)
                         })  SubItems["PlayerName"]:AddToTheme({TextColor3 = "Text"})
 
@@ -6755,7 +6776,7 @@ local Library do
                             TextXAlignment = Enum.TextXAlignment.Left,
                             BorderSizePixel = 0,
                             AutomaticSize = Enum.AutomaticSize.XY,
-                            TextSize = 14,
+                            TextSize = 10,
                             BackgroundColor3 = FromRGB(255, 255, 255)
                         })  SubItems["MessageText"]:AddToTheme({TextColor3 = "Text"})
 
@@ -6811,7 +6832,7 @@ local Library do
                             Position = UDim2New(1, -38, 0, 0),
                             BorderSizePixel = 0,
                             AutomaticSize = Enum.AutomaticSize.X,
-                            TextSize = 14,
+                            TextSize = 10,
                             BackgroundColor3 = FromRGB(255, 255, 255)
                         })  SubItems["PlayerName"]:AddToTheme({TextColor3 = "Text"})
 
@@ -6850,7 +6871,7 @@ local Library do
                             BorderSizePixel = 0,
                             AutomaticSize = Enum.AutomaticSize.XY,
                             TextWrapped = true,
-                            TextSize = 14,
+                            TextSize = 10,
                             BackgroundColor3 = FromRGB(255, 255, 255)
                         })  SubItems["MessageText"]:AddToTheme({TextColor3 = "Text"})
 
@@ -6992,7 +7013,7 @@ local Library do
                     Position = UDim2New(0, 0, 0, 2),
                     BorderSizePixel = 0,
                     AutomaticSize = Enum.AutomaticSize.X,
-                    TextSize = 14,
+                    TextSize = 10,
                     BackgroundColor3 = FromRGB(255, 255, 255)
                 })  Items["Title"]:AddToTheme({TextColor3 = "Text"})
 
@@ -7009,7 +7030,7 @@ local Library do
                     Position = UDim2New(0, 0, 0, 24),
                     BorderColor3 = FromRGB(0, 0, 0),
                     AutomaticSize = Enum.AutomaticSize.X,
-                    TextSize = 14,
+                    TextSize = 10,
                     BackgroundColor3 = FromRGB(255, 255, 255)
                 })  Items["Description"]:AddToTheme({TextColor3 = "Inactive Text"})
             end
@@ -7138,7 +7159,7 @@ local Library do
                     Position = UDim2New(0, 35, 0.5, 0),
                     BorderSizePixel = 0,
                     AutomaticSize = Enum.AutomaticSize.X,
-                    TextSize = 14,
+                    TextSize = 10,
                     BackgroundColor3 = FromRGB(255, 255, 255)
                 })  Items["Text"]:AddToTheme({TextColor3 = "Text"})
 
@@ -7220,7 +7241,7 @@ local Library do
                     TextXAlignment = Enum.TextXAlignment.Left,
                     BorderSizePixel = 0,
                     AutomaticSize = Enum.AutomaticSize.X,
-                    TextSize = 14,
+                    TextSize = 10,
                     BackgroundColor3 = FromRGB(255, 255, 255)
                 })  Items["Text"]:AddToTheme({TextColor3 = "Text"})
 
@@ -7265,7 +7286,7 @@ local Library do
                     TextXAlignment = Enum.TextXAlignment.Left,
                     BorderColor3 = FromRGB(0, 0, 0),
                     AutomaticSize = Enum.AutomaticSize.X,
-                    TextSize = 14,
+                    TextSize = 10,
                     BackgroundColor3 = FromRGB(255, 255, 255)
                 })  NewKey:AddToTheme({TextColor3 = "Text"})
 
@@ -7283,7 +7304,7 @@ local Library do
                     Position = UDim2New(1, 50, 0, 0),
                     BorderColor3 = FromRGB(0, 0, 0),
                     AutomaticSize = Enum.AutomaticSize.X,
-                    TextSize = 14,
+                    TextSize = 10,
                     BackgroundColor3 = FromRGB(255, 255, 255)
                 })  NewKeyStatus:AddToTheme({TextColor3 = "Text"})
 
@@ -7382,34 +7403,21 @@ local Library do
                     CornerRadius = UDimNew(0, 5)
                 })
 
-                local SidebarWidth = 178
+                local SidebarWidth = 63
+                local TopbarHeight = 45
 
-                -- gamesense style icon rail, left side of the window
                 Items["Sidebar"] = Instances:Create("Frame", {
                     Parent = Items["MainFrame"].Instance,
                     Name = "\0",
                     BorderColor3 = FromRGB(0, 0, 0),
                     BorderSizePixel = 0,
-                    Position = UDim2New(0, 0, 0, 0),
-                    Size = UDim2New(0, SidebarWidth, 1, 0),
+                    Position = UDim2New(0, 0, 0, TopbarHeight),
+                    Size = UDim2New(0, SidebarWidth, 1, -TopbarHeight),
                     ZIndex = 2,
-                    BackgroundColor3 = FromRGB(22, 25, 29)
-                })  Items["Sidebar"]:AddToTheme({BackgroundColor3 = "Inline"})
+                    BackgroundColor3 = FromRGB(0, 0, 0)
+                })  Items["Sidebar"]:AddToTheme({BackgroundColor3 = "Background"})
 
-                Instances:Create("Frame", {
-                    Parent = Items["Sidebar"].Instance,
-                    Name = "\0",
-                    BorderColor3 = FromRGB(0, 0, 0),
-                    AnchorPoint = Vector2New(1, 0),
-                    BackgroundTransparency = 0.4,
-                    Position = UDim2New(1, 0, 0, 0),
-                    Size = UDim2New(0, 1, 1, 0),
-                    ZIndex = 2,
-                    BorderSizePixel = 0,
-                    BackgroundColor3 = FromRGB(32, 36, 42)
-                }):AddToTheme({BackgroundColor3 = "Border"})
-
-                -- holds every page tab
+                -- icons only, no labels
                 Items["Holder"] = Instances:Create("ScrollingFrame", {
                     Parent = Items["Sidebar"].Instance,
                     Name = "\0",
@@ -7418,8 +7426,8 @@ local Library do
                     BackgroundTransparency = 1,
                     BorderSizePixel = 0,
                     ScrollBarThickness = 0,
-                    Position = UDim2New(0, 0, 0, 56),
-                    Size = UDim2New(1, 0, 1, -56),
+                    Position = UDim2New(0, 0, 0, 8),
+                    Size = UDim2New(1, 0, 1, -8),
                     ZIndex = 2,
                     CanvasSize = UDim2New(0, 0, 0, 0),
                     BackgroundColor3 = FromRGB(255, 255, 255)
@@ -7430,17 +7438,8 @@ local Library do
                     Name = "\0",
                     HorizontalAlignment = Enum.HorizontalAlignment.Center,
                     FillDirection = Enum.FillDirection.Vertical,
-                    Padding = UDimNew(0, 3),
+                    Padding = UDimNew(0, 8),
                     SortOrder = Enum.SortOrder.LayoutOrder
-                })
-
-                Instances:Create("UIPadding", {
-                    Parent = Items["Holder"].Instance,
-                    Name = "\0",
-                    PaddingBottom = UDimNew(0, 8),
-                    PaddingTop = UDimNew(0, 4),
-                    PaddingRight = UDimNew(0, 8),
-                    PaddingLeft = UDimNew(0, 8)
                 })
 
                 Items["Shadow"] = Instances:Create("ImageLabel", {
@@ -7463,13 +7462,13 @@ local Library do
                 Items["Topbar"] = Instances:Create("Frame", {
                     Parent = Items["MainFrame"].Instance,
                     Name = "\0",
-                    Position = UDim2New(0, SidebarWidth, 0, 0),
-                    Size = UDim2New(1, -SidebarWidth, 0, 35),
+                    Position = UDim2New(0, 0, 0, 0),
+                    Size = UDim2New(1, 0, 0, TopbarHeight),
                     BorderColor3 = FromRGB(0, 0, 0),
                     ZIndex = 2,
                     BorderSizePixel = 0,
-                    BackgroundColor3 = FromRGB(22, 25, 29)
-                })  Items["Topbar"]:AddToTheme({BackgroundColor3 = "Inline"})
+                    BackgroundColor3 = FromRGB(0, 0, 0)
+                })  Items["Topbar"]:AddToTheme({BackgroundColor3 = "Background"})
 
                 Instances:Create("UICorner", {
                     Parent = Items["Topbar"].Instance,
@@ -7512,53 +7511,26 @@ local Library do
                 end})
 
                 Items["Logo"] = Instances:Create("ImageLabel", {
-                    Parent = Items["Sidebar"].Instance,
+                    Parent = Items["Topbar"].Instance,
                     Name = "\0",
-                    ImageColor3 = FromRGB(124, 210, 55),
+                    ImageColor3 = FromRGB(255, 255, 255),
                     ScaleType = Enum.ScaleType.Fit,
                     BorderColor3 = FromRGB(0, 0, 0),
-                    Size = UDim2New(0, 26, 0, 26),
-                    AnchorPoint = Vector2New(0, 0),
+                    Size = UDim2New(0, 28, 0, 28),
+                    AnchorPoint = Vector2New(0, 0.5),
                     Image = Library:GetLogoAsset(Window.Logo),
                     BackgroundTransparency = 1,
-                    Position = UDim2New(0, 14, 0, 12),
+                    Position = UDim2New(0, 14, 0.5, 0),
                     ZIndex = 3,
                     BorderSizePixel = 0,
                     BackgroundColor3 = FromRGB(255, 255, 255)
-                })  Items["Logo"]:AddToTheme({ImageColor3 = "Accent"})
-
-                Instances:Create("UICorner", {
-                    Parent = Items["Logo"].Instance,
-                    Name = "\0",
-                    CornerRadius = UDimNew(1, 0)
-                })
-
-                Items["LogoText"] = Instances:Create("TextLabel", {
-                    Parent = Items["Sidebar"].Instance,
-                    Name = "\0",
-                    FontFace = Library.Font,
-                    AnchorPoint = Vector2New(0, 0.5),
-                    ZIndex = 3,
-                    TextSize = 16,
-                    Size = UDim2New(0, 0, 0, 18),
-                    RichText = true,
-                    TextColor3 = FromRGB(255, 255, 255),
-                    BorderColor3 = FromRGB(0, 0, 0),
-                    Text = Window.Name,
-                    BackgroundTransparency = 1,
-                    TextXAlignment = Enum.TextXAlignment.Left,
-                    Position = UDim2New(0, 48, 0, 25),
-                    BorderSizePixel = 0,
-                    AutomaticSize = Enum.AutomaticSize.X,
-                    BackgroundColor3 = FromRGB(255, 255, 255)
-                })  Items["LogoText"]:AddToTheme({TextColor3 = "Text"})
+                })  Items["Logo"]:AddToTheme({ImageColor3 = "Image"})
 
                 Instances:Create("Frame", {
                     Parent = Items["Sidebar"].Instance,
                     Name = "\0",
-                    BorderColor3 = FromRGB(0, 0, 0),
-                    Position = UDim2New(0, 12, 0, 48),
-                    Size = UDim2New(1, -24, 0, 1),
+                    Position = UDim2New(0, 0, 0, 0),
+                    Size = UDim2New(1, 0, 0, 1),
                     ZIndex = 3,
                     BorderSizePixel = 0,
                     BackgroundTransparency = 0.5,
@@ -7579,7 +7551,7 @@ local Library do
                     Text = Window.Name,
                     BackgroundTransparency = 1,
                     TextXAlignment = Enum.TextXAlignment.Left,
-                    Position = UDim2New(0, 8, 0.5, 0),
+                    Position = UDim2New(0, 50, 0.5, 0),
                     BorderSizePixel = 0,
                     AutomaticSize = Enum.AutomaticSize.X,
                     BackgroundColor3 = FromRGB(255, 255, 255)
@@ -7619,7 +7591,7 @@ local Library do
                     TextXAlignment = Enum.TextXAlignment.Left,
                     BorderColor3 = FromRGB(0, 0, 0),
                     ZIndex = 2,
-                    TextSize = 12,
+                    TextSize = 9,
                     BackgroundColor3 = FromRGB(255, 255, 255)
                 })  Items["VersionText"]:AddToTheme({TextColor3 = "Text"})
 
@@ -7696,7 +7668,7 @@ local Library do
                     FontFace = Library.Font,
                     AnchorPoint = Vector2New(1, 0.5),
                     ZIndex = 2,
-                    TextSize = 13,
+                    TextSize = 10,
                     Size = UDim2New(0, 0, 0, 15),
                     RichText = true,
                     TextTransparency = 0.35,
@@ -7726,8 +7698,8 @@ local Library do
                     Name = "\0",
                     BorderColor3 = FromRGB(0, 0, 0),
                     BackgroundTransparency = 1,
-                    Position = UDim2New(0, SidebarWidth, 0, 35),
-                    Size = UDim2New(1, -SidebarWidth, 1, -35),
+                    Position = UDim2New(0, SidebarWidth, 0, TopbarHeight),
+                    Size = UDim2New(1, -SidebarWidth, 1, -TopbarHeight),
                     ClipsDescendants = true,
                     ZIndex = 2,
                     BorderSizePixel = 0,
@@ -7792,7 +7764,7 @@ local Library do
                     AnchorPoint = Vector2New(0, 0.5),
                     PlaceholderColor3 = FromRGB(185, 185, 185),
                     PlaceholderText = "search",
-                    TextSize = 13,
+                    TextSize = 10,
                     Size = UDim2New(1, -34, 0, 14),
                     ClipsDescendants = true,
                     BorderColor3 = FromRGB(0, 0, 0),
@@ -7996,7 +7968,7 @@ local Library do
 
                 if IsMinimized then
                     OldSize = Items["MainFrame"].Instance.AbsoluteSize
-                    Items["MainFrame"]:Tween(nil, {Size = UDim2New(0, Items["MainFrame"].Instance.Size.X.Offset, 0, 35)})
+                    Items["MainFrame"]:Tween(nil, {Size = UDim2New(0, Items["MainFrame"].Instance.Size.X.Offset, 0, TopbarHeight)})
                     Items["MinimizeButton"]:Tween(nil, {ImageTransparency = 1})
                     Items["UnMinimizeButton"]:Tween(nil, {ImageTransparency = 0})
                 else
@@ -8082,18 +8054,12 @@ local Library do
                     Text = "",
                     AutoButtonColor = false,
                     BackgroundTransparency = 1,
-                    Size = UDim2New(1, 0, 0, 30),
+                    Size = UDim2New(0, 40, 0, 40),
                     BorderSizePixel = 0,
                     ZIndex = 2,
-                    TextSize = 14,
-                    BackgroundColor3 = FromRGB(37, 37, 42)
-                })  Items["Inactive"]:AddToTheme({BackgroundColor3 = "Element"})
-
-                Instances:Create("UICorner", {
-                    Parent = Items["Inactive"].Instance,
-                    Name = "\0",
-                    CornerRadius = UDimNew(0, 5)
-                })
+                    TextSize = 10,
+                    BackgroundColor3 = FromRGB(14, 14, 14)
+                })  Items["Inactive"]:AddToTheme({BackgroundColor3 = "Inline"})
 
                 Items["ActiveBar"] = Instances:Create("Frame", {
                     Parent = Items["Inactive"].Instance,
@@ -8101,29 +8067,23 @@ local Library do
                     BorderColor3 = FromRGB(0, 0, 0),
                     AnchorPoint = Vector2New(0, 0.5),
                     Position = UDim2New(0, 0, 0.5, 0),
-                    Size = UDim2New(0, 3, 0, 16),
+                    Size = UDim2New(0, 2, 0, 16),
                     Visible = false,
                     ZIndex = 3,
                     BorderSizePixel = 0,
-                    BackgroundColor3 = FromRGB(124, 210, 55)
-                })  Items["ActiveBar"]:AddToTheme({BackgroundColor3 = "Accent"})
-
-                Instances:Create("UICorner", {
-                    Parent = Items["ActiveBar"].Instance,
-                    Name = "\0",
-                    CornerRadius = UDimNew(1, 0)
-                })
+                    BackgroundColor3 = FromRGB(128, 128, 128)
+                })  Items["ActiveBar"]:AddToTheme({BackgroundColor3 = "Image"})
 
                 Items["Icon"] = Instances:Create("ImageLabel", {
                     Parent = Items["Inactive"].Instance,
                     Name = "\0",
                     ImageTransparency = 0.4,
                     BorderColor3 = FromRGB(0, 0, 0),
-                    Size = UDim2New(0, 18, 0, 18),
-                    AnchorPoint = Vector2New(0, 0.5),
+                    Size = UDim2New(0, 32, 0, 32),
+                    AnchorPoint = Vector2New(0.5, 0.5),
                     Image = Library:ResolveIcon(Page.Icon, "rbxassetid://111178525804834"),
                     BackgroundTransparency = 1,
-                    Position = UDim2New(0, 12, 0.5, 0),
+                    Position = UDim2New(0.5, 0, 0.5, 0),
                     ZIndex = 3,
                     BorderSizePixel = 0,
                     BackgroundColor3 = FromRGB(255, 255, 255)
@@ -8133,11 +8093,11 @@ local Library do
                     Parent = Items["Inactive"].Instance,
                     Name = "\0",
                     FontFace = Library.Font,
-                    Visible = true,
+                    Visible = false,
                     Active = true,
                     AnchorPoint = Vector2New(0, 0.5),
                     ZIndex = 3,
-                    TextSize = 14,
+                    TextSize = 10,
                     Size = UDim2New(0, 0, 0, 15),
                     TextTransparency = 0.4,
                     TextColor3 = FromRGB(255, 255, 255),
@@ -8261,8 +8221,8 @@ local Library do
                 if Bool then
                     Items["ActiveBar"].Instance.Visible = true
                     Items["Inactive"]:Tween(nil, {BackgroundTransparency = 0})
-                    Items["Icon"]:ChangeItemTheme({ImageColor3 = "Accent"})
-                    Items["Icon"]:Tween(nil, {ImageColor3 = Library.Theme.Accent, ImageTransparency = 0})
+                    Items["Icon"]:ChangeItemTheme({ImageColor3 = "Image"})
+                    Items["Icon"]:Tween(nil, {ImageColor3 = Library.Theme.Image, ImageTransparency = 0})
                     Items["Text"]:Tween(nil, {TextTransparency = 0})
 
                     Library.CurrentPage = Page
@@ -8368,7 +8328,7 @@ local Library do
                     Size = UDim2New(0, 0, 0, 24),
                     BorderSizePixel = 0,
                     ZIndex = 2,
-                    TextSize = 14,
+                    TextSize = 10,
                     BackgroundColor3 = FromRGB(16, 18, 21)
                 })  Items["Inactive"]:AddToTheme({BackgroundColor3 = "Background"})
 
@@ -8395,7 +8355,7 @@ local Library do
                     Active = true,
                     AnchorPoint = Vector2New(0, 0.5),
                     ZIndex = 2,
-                    TextSize = 13,
+                    TextSize = 10,
                     Size = UDim2New(0, 0, 0, 15),
                     TextColor3 = FromRGB(255, 255, 255),
                     BorderColor3 = FromRGB(0, 0, 0),
@@ -8631,7 +8591,7 @@ local Library do
                     Position = UDim2New(0, 65, 1, -65),
                     BorderSizePixel = 0,
                     ZIndex = 2,
-                    TextSize = 14,
+                    TextSize = 10,
                     BackgroundColor3 = FromRGB(255, 255, 255)
                 })  Items["PlayerUsername"]:AddToTheme({TextColor3 = "Text"})
 
@@ -8648,7 +8608,7 @@ local Library do
                     Position = UDim2New(0, 65, 1, -50),
                     BorderSizePixel = 0,
                     ZIndex = 2,
-                    TextSize = 14,
+                    TextSize = 10,
                     BackgroundColor3 = FromRGB(255, 255, 255)
                 })  Items["PlayerUserID"]:AddToTheme({TextColor3 = "Text"})
 
@@ -8665,7 +8625,7 @@ local Library do
                     Position = UDim2New(0, 65, 1, -35),
                     BorderSizePixel = 0,
                     ZIndex = 2,
-                    TextSize = 14,
+                    TextSize = 10,
                     BackgroundColor3 = FromRGB(255, 255, 255)
                 })  Items["PlayerAccountAge"]:AddToTheme({TextColor3 = "Text"})
             end
@@ -8697,7 +8657,7 @@ local Library do
                         Size = UDim2New(0, 0, 0, 15),
                         BorderSizePixel = 0,
                         ZIndex = 2,
-                        TextSize = 14,
+                        TextSize = 10,
                         BackgroundColor3 = FromRGB(255, 255, 255)
                     })  DropdownItems["Text"]:AddToTheme({TextColor3 = "Text"})
 
@@ -8745,7 +8705,7 @@ local Library do
                         TextTruncate = Enum.TextTruncate.AtEnd,
                         BorderSizePixel = 0,
                         ZIndex = 2,
-                        TextSize = 14,
+                        TextSize = 10,
                         BackgroundColor3 = FromRGB(255, 255, 255)
                     })  DropdownItems["Value"]:AddToTheme({TextColor3 = "Text"})
 
@@ -8779,7 +8739,7 @@ local Library do
                         Position = UDim2New(0, 0, 1, 5),
                         BorderSizePixel = 0,
                         ZIndex = 5,
-                        TextSize = 14,
+                        TextSize = 10,
                         BackgroundColor3 = FromRGB(22, 25, 29)
                     })  DropdownItems["OptionHolder"]:AddToTheme({BackgroundColor3 = "Inline"})
 
@@ -8851,7 +8811,7 @@ local Library do
                         BorderSizePixel = 0,
                         Size = UDim2New(1, 0, 0, 25),
                         ZIndex = 5,
-                        TextSize = 14,
+                        TextSize = 10,
                         BackgroundColor3 = FromRGB(16, 18, 21)
                     })  OptionButton:AddToTheme({BackgroundColor3 = "Background"})
 
@@ -8886,7 +8846,7 @@ local Library do
                         TextTransparency = 0.5,
                         AnchorPoint = Vector2New(0, 0.5),
                         ZIndex = 5,
-                        TextSize = 14,
+                        TextSize = 10,
                         Size = UDim2New(0, 0, 0, 15),
                         TextColor3 = FromRGB(255, 255, 255),
                         BorderColor3 = FromRGB(0, 0, 0),
@@ -9103,7 +9063,7 @@ local Library do
                     ZIndex = 2,
                     Size = UDim2New(1, 0, 0, 25),
                     BorderSizePixel = 0,
-                    TextSize = 14,
+                    TextSize = 10,
                     BackgroundColor3 = FromRGB(22, 25, 24)
                 })  PlayerItems["NewPlayer"]:AddToTheme({BackgroundColor3 = "Inline"})
 
@@ -9129,7 +9089,7 @@ local Library do
                     TextXAlignment = Enum.TextXAlignment.Left,
                     BorderColor3 = FromRGB(0, 0, 0),
                     AutomaticSize = Enum.AutomaticSize.X,
-                    TextSize = 14,
+                    TextSize = 10,
                     BackgroundColor3 = FromRGB(255, 255, 255)
                 })
 
@@ -9149,7 +9109,7 @@ local Library do
                     TextXAlignment = Enum.TextXAlignment.Left,
                     BorderColor3 = FromRGB(0, 0, 0),
                     AutomaticSize = Enum.AutomaticSize.X,
-                    TextSize = 14,
+                    TextSize = 10,
                     BackgroundColor3 = FromRGB(255, 255, 255)
                 })
 
@@ -9172,7 +9132,7 @@ local Library do
                     TextXAlignment = Enum.TextXAlignment.Left,
                     BorderColor3 = FromRGB(0, 0, 0),
                     AutomaticSize = Enum.AutomaticSize.X,
-                    TextSize = 14,
+                    TextSize = 10,
                     BackgroundColor3 = FromRGB(255, 255, 255)
                 })
 
@@ -9379,7 +9339,7 @@ local Library do
                     TextXAlignment = Enum.TextXAlignment.Left,
                     Position = UDim2New(0, 34, 0, 8),
                     ZIndex = 2,
-                    TextSize = 14,
+                    TextSize = 10,
                     BackgroundColor3 = FromRGB(255, 255, 255)
                 })  Items["Title"]:AddToTheme({TextColor3 = "Text"})
 
@@ -9557,7 +9517,7 @@ local Library do
                     BorderSizePixel = 0,
                     Size = UDim2New(1, 0, 0, 30),
                     ZIndex = 2,
-                    TextSize = 14,
+                    TextSize = 10,
                     BackgroundColor3 = FromRGB(34, 39, 45)
                 })  Items["Button"]:AddToTheme({BackgroundColor3 = "Element"})
 
@@ -9597,7 +9557,7 @@ local Library do
                     BorderSizePixel = 0,
                     Size = UDim2New(1, 0, 1, 0),
                     ZIndex = 2,
-                    TextSize = 14,
+                    TextSize = 10,
                     BackgroundColor3 = FromRGB(255, 255, 255)
                 })  Items["Text"]:AddToTheme({TextColor3 = "Text"})
             end
@@ -9683,7 +9643,7 @@ local Library do
                     Size = UDim2New(0, 0, 0, 15),
                     BorderSizePixel = 0,
                     ZIndex = 2,
-                    TextSize = 14,
+                    TextSize = 10,
                     BackgroundColor3 = FromRGB(255, 255, 255)
                 })  Items["Text"]:AddToTheme({TextColor3 = "Text"})
 
@@ -9763,7 +9723,7 @@ local Library do
                     Position = UDim2New(1, 0, 0, 0),
                     BorderSizePixel = 0,
                     ZIndex = 2,
-                    TextSize = 14,
+                    TextSize = 10,
                     BackgroundColor3 = FromRGB(255, 255, 255)
                 })  Items["Value"]:AddToTheme({TextColor3 = "Text"})
             end
@@ -9955,7 +9915,7 @@ local Library do
                     TextXAlignment = Enum.TextXAlignment[Label.Alignment],
                     Position = UDim2New(0, 0, 0.5, 0),
                     BorderSizePixel = 0,
-                    TextSize = 14,
+                    TextSize = 10,
                     BackgroundColor3 = FromRGB(255, 255, 255)
                 })  Items["Text"]:AddToTheme({TextColor3 = "Text"})
 
@@ -10115,7 +10075,7 @@ local Library do
                     Size = UDim2New(0, 0, 0, 15),
                     BorderSizePixel = 0,
                     ZIndex = 2,
-                    TextSize = 14,
+                    TextSize = 10,
                     BackgroundColor3 = FromRGB(255, 255, 255)
                 })  Items["Text"]:AddToTheme({TextColor3 = "Text"})
 
@@ -10169,7 +10129,7 @@ local Library do
                     ClearTextOnFocus = false,
                     TextXAlignment = Enum.TextXAlignment.Left,
                     PlaceholderText = Textbox.Placeholder,
-                    TextSize = 14,
+                    TextSize = 10,
                     BackgroundColor3 = FromRGB(255, 255, 255)
                 })  Items["Input"]:AddToTheme({TextColor3 = "Text", PlaceholderColor3 = "Inactive Text"})
 
