@@ -1527,11 +1527,12 @@ local Library do
         },
 
         -- tab icons: one rbxassetid per tab, swap the numbers for whatever you like
+        -- "friendly" = noms lisibles, style lucide, jolis icônes par défaut
         Icons = {
-            ["aimbot"]   = "311756276",       -- crosshair
-            ["eye"]      = "111178525804834", -- library default, replace with an eye icon
-            ["misc"]     = "9080568477801",   -- library default, replace with a misc icon
-            ["settings"] = "99473719385675",  -- gear
+            ["aimbot"]   = "311756276",       -- crosshair (déjà OK)
+            ["eye"]      = "101937481624072", -- eye-off (plus visible, dans la liste fournie)
+            ["misc"]     = "85008933826428",  -- toolbox (symbole "misc" par défaut)
+            ["settings"] = "133220441796193", -- settings (engrenage, propre)
         },
 
         -- Ignore below
@@ -2696,13 +2697,15 @@ local Library do
 
     -- permanent settings page: theme manager + config manager + full menu customisation
     Library.SettingsPanel = function(self, Window)
-        if Window.SettingsPage then
-            return Window.SettingsPage
-        end
+        if Window.SettingsPage then return Window.SettingsPage end
+
+        -- ensure folders exist (created on first save/load, but guard here)
+        if not isfolder(Library.Folders.Configs) then makefolder(Library.Folders.Configs) end
+        if not isfolder(Library.Folders.Themes) then makefolder(Library.Folders.Themes) end
 
         local ThemeNames = { }
 
-        for Name in self.Themes do
+        for Name in pairs(self.Themes or { }) do
             ThemeNames[#ThemeNames + 1] = Name
         end
 
@@ -2729,6 +2732,11 @@ local Library do
             Flag = "settings_config_list",
             Callback = function() end,
         })
+
+        -- refresh the config dropdown after a brief delay so the list is built
+        task.delay(0.2, function()
+            Library:RefreshConfigsList(getgenv().Options["settings_config_list"])
+        end)
 
         Configs:Textbox({
             Name = "config name",
