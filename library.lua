@@ -669,10 +669,10 @@ function library:window(cfg)
         current_tab = nil
     }
 
-    -- Watermark
+    -- Watermark (1) - long, affiche titre + heure + FPS
     function window_obj:watermark(wcfg)
         wcfg = wcfg or {}
-        local text = wcfg.name or "gamesense | user | 60 fps"
+        local text = wcfg.name or wcfg.text or "gamesense | user | 60 fps"
         local wm = library:create("Frame", {
             Name = "Watermark",
             AutomaticSize = Enum.AutomaticSize.X,
@@ -688,8 +688,8 @@ function library:window(cfg)
 
         library:create("Frame", {
             Size = UDim2.new(1, 0, 0, 1),
-            BackgroundColor3 = library.theme.accent,
-            BorderSizePixel = 0,
+            BackgroundColor3 = Color3.fromRGB(0, 215, 165),
+            BackgroundTransparency = 0,
             Parent = wm
         })
 
@@ -703,11 +703,26 @@ function library:window(cfg)
             Size = UDim2.new(1, 0, 1, 0),
             BackgroundTransparency = 1,
             Font = Enum.Font.SourceSansBold,
-            Text = text,
+            Text = "GameSense | " .. (LocalPlayer.DisplayName or LocalPlayer.Name) .. " | 00:00 | 60 fps",
             TextColor3 = library.theme.text,
             TextSize = 11,
             Parent = wm
         })
+
+        -- Auto-update titre/heure/FPS
+        local last = tick()
+        local frames = 0
+        library:connection(RunService.RenderStepped, function()
+            frames = frames + 1
+            if tick() - last >= 1 then
+                local date = os.date("*t")
+                local h = string.format("%02d:%02d", date.hour, date.min)
+                local fps = math.floor(frames / (tick() - last))
+                lbl.Text = "GameSense | " .. (LocalPlayer.DisplayName or LocalPlayer.Name) .. " | " .. h .. " | " .. fps .. " fps"
+                frames = 0
+                last = tick()
+            end
+        end)
 
         return {
             set = function(new_text) lbl.Text = new_text end,
@@ -715,15 +730,15 @@ function library:window(cfg)
         }
     end
 
-    -- Floating window (Statistics)
+    -- Floating window (Features activées)
     function window_obj:floating(fcfg)
         fcfg = fcfg or {}
-        local title = fcfg.title or "Statistics"
-        local size = fcfg.size or UDim2.new(0, 160, 0, 175)
-        local pos = fcfg.position or UDim2.new(0.5, -345, 0.5, -170)
+        local title = fcfg.title or "Features"
+        local size = fcfg.size or UDim2.new(0, 160, 0, 140)
+        local pos = fcfg.position or UDim2.new(0.5, -345, 0.5, 0)
 
         local fw = library:create("Frame", {
-            Name = "FloatingWindow",
+            Name = "FloatingFeatures",
             Size = size,
             Position = pos,
             BackgroundColor3 = library.theme.main_bg,
@@ -749,74 +764,44 @@ function library:window(cfg)
             Text = title,
             TextColor3 = library.theme.text,
             TextSize = 11,
-            Parent = header
+            Parent = header,
+            TextXAlignment = Enum.TextXAlignment.Center
         })
 
-        local float_obj = { frame = fw, next_y = 26 }
+        local container = library:create("Frame", {
+            Size = UDim2.new(1, -8, 1, -24),
+            Position = UDim2.new(0, 4, 0, 22),
+            BackgroundTransparency = 1,
+            Parent = fw
+        })
+        library:create("UIListLayout", {
+            SortOrder = Enum.SortOrder.LayoutOrder,
+            Padding = UDim.new(0, 4),
+            Parent = container
+        })
 
-        function float_obj:row(lbl_text, val_text, val_col)
-            local row = library:create("Frame", {
-                Size = UDim2.new(1, -16, 0, 14),
-                Position = UDim2.new(0, 8, 0, self.next_y),
-                BackgroundTransparency = 1,
-                Parent = fw
-            })
-            self.next_y = self.next_y + 16
+        local float_obj = { frame = fw, container = container }
 
-            library:create("TextLabel", {
-                Size = UDim2.new(0.6, 0, 1, 0),
+        function float_obj:add(text)
+            local row = library:create("TextLabel", {
+                Size = UDim2.new(1, 0, 0, 14),
                 BackgroundTransparency = 1,
                 Font = Enum.Font.SourceSansBold,
-                Text = lbl_text,
-                TextColor3 = library.theme.text,
+                Text = "• " .. tostring(text),
+                TextColor3 = Color3.fromRGB(90, 220, 120),
                 TextSize = 11,
                 TextXAlignment = Enum.TextXAlignment.Left,
-                Parent = row
+                Parent = container
             })
-
-            local v = library:create("TextLabel", {
-                Size = UDim2.new(0.4, 0, 1, 0),
-                Position = UDim2.new(0.6, 0, 0, 0),
-                BackgroundTransparency = 1,
-                Font = Enum.Font.SourceSansBold,
-                Text = val_text,
-                TextColor3 = val_col or library.theme.text,
-                TextSize = 11,
-                TextXAlignment = Enum.TextXAlignment.Right,
-                Parent = row
-            })
-
-            return {
-                set = function(t, c)
-                    v.Text = t
-                    if c then v.TextColor3 = c end
-                end
-            }
+            return row
         end
 
-        function float_obj:progress(percent, col)
-            local bg = library:create("Frame", {
-                Size = UDim2.new(1, -16, 0, 6),
-                Position = UDim2.new(0, 8, 0, self.next_y + 4),
-                BackgroundColor3 = library.theme.element_bg,
-                BorderSizePixel = 0,
-                Parent = fw
-            })
-            make_stroke(bg, library.theme.border_dark, 1)
-
-            local fill = library:create("Frame", {
-                Size = UDim2.new(math.clamp((percent or 50) / 100, 0, 1), 0, 1, 0),
-                BackgroundColor3 = col or library.theme.accent,
-                BorderSizePixel = 0,
-                Parent = bg
-            })
-
-            self.next_y = self.next_y + 16
-            return {
-                set = function(p)
-                    fill.Size = UDim2.new(math.clamp(p / 100, 0, 1), 0, 1, 0)
+        function float_obj:remove(text)
+            for _, v in ipairs(container:GetChildren()) do
+                if v:IsA("TextLabel") and v.Text:match(tostring(text)) then
+                    v:Destroy()
                 end
-            }
+            end
         end
 
         return float_obj
