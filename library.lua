@@ -370,6 +370,12 @@ function library:BuildESPPreview(parent, options)
     viewport.CurrentCamera = view_cam
     view_cam.Parent = viewport
 
+    -- WorldModel : nécessaire pour que vêtements / accessoires du perso s'affichent correctement
+    local world = library:create("WorldModel", {
+        Name = "World",
+        Parent = viewport,
+    })
+
     -- Boîte englobante 2D
     local box = library:create("Frame", {
         Name = "Box",
@@ -422,10 +428,8 @@ function library:BuildESPPreview(parent, options)
     })
 
     local function clear_view()
-        for _, child in viewport:GetChildren() do
-            if child:IsA("Model") or child:IsA("BasePart") then
-                child:Destroy()
-            end
+        for _, child in world:GetChildren() do
+            child:Destroy()
         end
     end
 
@@ -507,7 +511,7 @@ function library:BuildESPPreview(parent, options)
             end
         end
 
-        clone.Parent = viewport
+        clone.Parent = world
 
         -- On centre le personnage sur l'origine puis on place la caméra face à lui.
         local bsize = Vector3.new(2, 5, 1)
@@ -547,7 +551,7 @@ function library:BuildESPPreview(parent, options)
                         bone.Color = esp_color
                         bone.Size = Vector3.new(0.07, 0.07, len)
                         bone.CFrame = CFrame.lookAt((aPos + bPos) * 0.5, bPos)
-                        bone.Parent = viewport
+                        bone.Parent = world
                     end
                 end
             end
@@ -596,6 +600,13 @@ function library:window(cfg)
     cfg = cfg or {}
     local window_name = cfg.name or "gamesense"
     local window_size = cfg.size or UDim2.new(0, 500, 0, 360)
+
+    -- Nettoyage des anciennes fenêtres : évite d'empiler les exécutions précédentes
+    for _, g in ipairs(TargetGui:GetChildren()) do
+        if g:IsA("ScreenGui") and g.Name:match("^GameSense_") then
+            g:Destroy()
+        end
+    end
 
     local screen = library:create("ScreenGui", {
         Name = "GameSense_" .. math.random(1000, 9999),
