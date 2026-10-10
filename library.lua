@@ -292,29 +292,11 @@ function library:window(cfg)
     make_stroke(main, self.theme.border, 1)
     make_draggable(main)
 
-    -- Barre dégradée GameSense
-    local top_bar = library:create("Frame", {
-        Name = "RainbowGradient",
-        Size = UDim2.new(1, 0, 0, 2),
-        BorderSizePixel = 0,
-        BackgroundColor3 = Color3.fromRGB(255, 255, 255),
-        Parent = main
-    })
-
-    local gradient = Instance.new("UIGradient")
-    gradient.Color = ColorSequence.new({
-        ColorSequenceKeypoint.new(0.00, Color3.fromRGB(0, 220, 255)),   -- Cyan
-        ColorSequenceKeypoint.new(0.35, Color3.fromRGB(215, 60, 255)),  -- Violet/Magenta
-        ColorSequenceKeypoint.new(0.70, Color3.fromRGB(255, 60, 90)),   -- Rouge/Rose
-        ColorSequenceKeypoint.new(1.00, Color3.fromRGB(255, 215, 60))   -- Jaune
-    })
-    gradient.Parent = top_bar
-
     -- Sidebar (Navigation verticale)
     local sidebar = library:create("Frame", {
         Name = "Sidebar",
-        Size = UDim2.new(0, 44, 1, -2),
-        Position = UDim2.new(0, 0, 0, 2),
+        Size = UDim2.new(0, 44, 1, 0),
+        Position = UDim2.new(0, 0, 0, 0),
         BackgroundColor3 = self.theme.main_bg,
         BorderSizePixel = 0,
         Parent = main
@@ -335,8 +317,8 @@ function library:window(cfg)
     -- Zone de contenu
     local content_holder = library:create("Frame", {
         Name = "Content",
-        Size = UDim2.new(1, -48, 1, -8),
-        Position = UDim2.new(0, 46, 0, 5),
+        Size = UDim2.new(1, -48, 1, -6),
+        Position = UDim2.new(0, 46, 0, 3),
         BackgroundTransparency = 1,
         Parent = main
     })
@@ -633,7 +615,7 @@ function library:window(cfg)
                 Name = "SubBtn_" .. sub_name,
                 AutomaticSize = Enum.AutomaticSize.X,
                 Size = UDim2.new(0, 24, 0, 20),
-                BackgroundColor3 = library.theme.element_bg,
+                BackgroundColor3 = Color3.fromRGB(255, 255, 255),
                 BackgroundTransparency = 1,
                 BorderSizePixel = 0,
                 Font = Enum.Font.SourceSansBold,
@@ -644,6 +626,18 @@ function library:window(cfg)
                 Parent = subtab_bar
             })
             make_corner(sub_btn, 3)
+
+            library:create("UIGradient", {
+                Rotation = 90,
+                Parent = sub_btn,
+                Color = ColorSequence.new({
+                    ColorSequenceKeypoint.new(0, Color3.fromRGB(33, 33, 33)),
+                    ColorSequenceKeypoint.new(1, Color3.fromRGB(8, 8, 8))
+                })
+            })
+
+            local sub_stroke = make_stroke(sub_btn, library.theme.border, 1)
+            sub_stroke.Enabled = false
 
             library:create("UIPadding", {
                 PaddingLeft = UDim.new(0, 10),
@@ -688,6 +682,7 @@ function library:window(cfg)
                 view = sub_view,
                 left = col_a,
                 right = col_b,
+                stroke = sub_stroke,
                 active = false
             }
 
@@ -696,6 +691,7 @@ function library:window(cfg)
                     local prev = tab_obj.current_sub
                     prev.view.Visible = false
                     prev.active = false
+                    if prev.stroke then prev.stroke.Enabled = false end
                     library:tween(prev.btn, {
                         TextColor3 = library.theme.text_dim,
                         BackgroundTransparency = 1
@@ -704,9 +700,10 @@ function library:window(cfg)
                 tab_obj.current_sub = sub_obj
                 sub_obj.active = true
                 sub_view.Visible = true
+                sub_stroke.Enabled = true
                 library:tween(sub_btn, {
-                    TextColor3 = library.theme.text,
-                    BackgroundTransparency = 0.6
+                    TextColor3 = Color3.fromRGB(255, 255, 255),
+                    BackgroundTransparency = 0
                 }, nil, 0.15)
             end
 
