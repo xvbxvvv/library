@@ -1,5 +1,5 @@
 -- ==============================================================================
--- GAMESENSE UI LIBRARY (skeet.cc style)
+-- GAMESENSE UI LIBRARY (skeet.cc style + Monolith custom elements)
 -- Reusable Luau Library for Roblox
 -- ==============================================================================
 
@@ -9,6 +9,7 @@ local TweenService = game:GetService("TweenService")
 local CoreGui = game:GetService("CoreGui")
 local RunService = game:GetService("RunService")
 local GuiService = game:GetService("GuiService")
+local HttpService = game:GetService("HttpService")
 
 local LocalPlayer = Players.LocalPlayer
 local Mouse = LocalPlayer:GetMouse()
@@ -20,7 +21,7 @@ local library = {
     flags = {},
     config_flags = {},
     connections = {},
-    active_popups = {},
+    notifications = { notifs = {} },
     theme = {
         main_bg     = Color3.fromRGB(15, 15, 15),
         panel_bg    = Color3.fromRGB(19, 19, 19),
@@ -37,7 +38,38 @@ local library = {
 }
 library.__index = library
 
--- Helpers
+-- Helpers & Utility
+function library:create(instance, options)
+    local ins = Instance.new(instance)
+    for prop, value in options do
+        ins[prop] = value
+    end
+    return ins
+end
+
+function library:tween(obj, properties, easing_style, time)
+    local tw = TweenService:Create(obj, TweenInfo.new(time or 0.2, easing_style or Enum.EasingStyle.Quad, Enum.EasingDirection.Out), properties)
+    tw:Play()
+    return tw
+end
+
+function library:round(number, float)
+    local mult = 1 / (float or 1)
+    return math.floor(number * mult + 0.5) / mult
+end
+
+function library:mouse_in_frame(uiobject)
+    local p = UserInputService:GetMouseLocation()
+    return uiobject.AbsolutePosition.Y <= p.Y and p.Y <= uiobject.AbsolutePosition.Y + uiobject.AbsoluteSize.Y
+       and uiobject.AbsolutePosition.X <= p.X and p.X <= uiobject.AbsolutePosition.X + uiobject.AbsoluteSize.X
+end
+
+function library:connection(sig, callback)
+    local conn = sig:Connect(callback)
+    table.insert(library.connections, conn)
+    return conn
+end
+
 local function make_corner(instance, radius)
     local corner = Instance.new("UICorner")
     corner.CornerRadius = UDim.new(0, radius or 3)
@@ -86,32 +118,35 @@ function library:window(cfg)
     local window_name = cfg.name or "gamesense"
     local window_size = cfg.size or UDim2.new(0, 500, 0, 360)
 
-    local screen = Instance.new("ScreenGui")
-    screen.Name = "GameSense_" .. math.random(1000, 9999)
-    screen.ResetOnSpawn = false
-    screen.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-    screen.Parent = TargetGui
+    local screen = library:create("ScreenGui", {
+        Name = "GameSense_" .. math.random(1000, 9999),
+        ResetOnSpawn = false,
+        ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
+        Parent = TargetGui
+    })
     self.screen = screen
 
-    -- Cadre extérieur
-    local main = Instance.new("Frame")
-    main.Name = "MainFrame"
-    main.Size = window_size
-    main.Position = UDim2.new(0.5, -window_size.X.Offset / 2, 0.5, -window_size.Y.Offset / 2)
-    main.BackgroundColor3 = self.theme.main_bg
-    main.BorderSizePixel = 0
-    main.Parent = screen
+    -- Cadre extérieur principal
+    local main = library:create("Frame", {
+        Name = "MainFrame",
+        Size = window_size,
+        Position = UDim2.new(0.5, -window_size.X.Offset / 2, 0.5, -window_size.Y.Offset / 2),
+        BackgroundColor3 = self.theme.main_bg,
+        BorderSizePixel = 0,
+        Parent = screen
+    })
     make_corner(main, 4)
     make_stroke(main, self.theme.border, 1)
     make_draggable(main)
 
     -- Barre dégradée GameSense
-    local top_bar = Instance.new("Frame")
-    top_bar.Name = "RainbowGradient"
-    top_bar.Size = UDim2.new(1, 0, 0, 2)
-    top_bar.BorderSizePixel = 0
-    top_bar.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-    top_bar.Parent = main
+    local top_bar = library:create("Frame", {
+        Name = "RainbowGradient",
+        Size = UDim2.new(1, 0, 0, 2),
+        BorderSizePixel = 0,
+        BackgroundColor3 = Color3.fromRGB(255, 255, 255),
+        Parent = main
+    })
 
     local gradient = Instance.new("UIGradient")
     gradient.Color = ColorSequence.new({
@@ -123,31 +158,35 @@ function library:window(cfg)
     gradient.Parent = top_bar
 
     -- Sidebar (Navigation verticale)
-    local sidebar = Instance.new("Frame")
-    sidebar.Name = "Sidebar"
-    sidebar.Size = UDim2.new(0, 44, 1, -2)
-    sidebar.Position = UDim2.new(0, 0, 0, 2)
-    sidebar.BackgroundColor3 = self.theme.main_bg
-    sidebar.BorderSizePixel = 0
-    sidebar.Parent = main
+    local sidebar = library:create("Frame", {
+        Name = "Sidebar",
+        Size = UDim2.new(0, 44, 1, -2),
+        Position = UDim2.new(0, 0, 0, 2),
+        BackgroundColor3 = self.theme.main_bg,
+        BorderSizePixel = 0,
+        Parent = main
+    })
 
-    local sidebar_layout = Instance.new("UIListLayout")
-    sidebar_layout.Padding = UDim.new(0, 4)
-    sidebar_layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
-    sidebar_layout.SortOrder = Enum.SortOrder.LayoutOrder
-    sidebar_layout.Parent = sidebar
+    local sidebar_layout = library:create("UIListLayout", {
+        Padding = UDim.new(0, 4),
+        HorizontalAlignment = Enum.HorizontalAlignment.Center,
+        SortOrder = Enum.SortOrder.LayoutOrder,
+        Parent = sidebar
+    })
 
-    local sidebar_pad = Instance.new("UIPadding")
-    sidebar_pad.PaddingTop = UDim.new(0, 8)
-    sidebar_pad.Parent = sidebar
+    library:create("UIPadding", {
+        PaddingTop = UDim.new(0, 8),
+        Parent = sidebar
+    })
 
     -- Zone de contenu
-    local content_holder = Instance.new("Frame")
-    content_holder.Name = "Content"
-    content_holder.Size = UDim2.new(1, -48, 1, -8)
-    content_holder.Position = UDim2.new(0, 46, 0, 5)
-    content_holder.BackgroundTransparency = 1
-    content_holder.Parent = main
+    local content_holder = library:create("Frame", {
+        Name = "Content",
+        Size = UDim2.new(1, -48, 1, -8),
+        Position = UDim2.new(0, 46, 0, 5),
+        BackgroundTransparency = 1,
+        Parent = main
+    })
 
     local window_obj = {
         main = main,
@@ -158,41 +197,45 @@ function library:window(cfg)
         current_tab = nil
     }
 
-    -- Watermark method
+    -- Watermark
     function window_obj:watermark(wcfg)
         wcfg = wcfg or {}
         local text = wcfg.name or "gamesense | user | 60 fps"
-        local wm = Instance.new("Frame")
-        wm.Name = "Watermark"
-        wm.AutomaticSize = Enum.AutomaticSize.X
-        wm.Size = UDim2.new(0, 0, 0, 18)
-        wm.Position = UDim2.new(0, 20, 0, 20)
-        wm.BackgroundColor3 = library.theme.panel_bg
-        wm.BorderSizePixel = 0
-        wm.Parent = screen
+        local wm = library:create("Frame", {
+            Name = "Watermark",
+            AutomaticSize = Enum.AutomaticSize.X,
+            Size = UDim2.new(0, 0, 0, 18),
+            Position = UDim2.new(0, 20, 0, 20),
+            BackgroundColor3 = library.theme.panel_bg,
+            BorderSizePixel = 0,
+            Parent = screen
+        })
         make_corner(wm, 3)
         make_stroke(wm, library.theme.border, 1)
         make_draggable(wm)
 
-        local line = Instance.new("Frame")
-        line.Size = UDim2.new(1, 0, 0, 1)
-        line.BackgroundColor3 = library.theme.accent
-        line.BorderSizePixel = 0
-        line.Parent = wm
+        library:create("Frame", {
+            Size = UDim2.new(1, 0, 0, 1),
+            BackgroundColor3 = library.theme.accent,
+            BorderSizePixel = 0,
+            Parent = wm
+        })
 
-        local pad = Instance.new("UIPadding")
-        pad.PaddingLeft = UDim.new(0, 8)
-        pad.PaddingRight = UDim.new(0, 8)
-        pad.Parent = wm
+        library:create("UIPadding", {
+            PaddingLeft = UDim.new(0, 8),
+            PaddingRight = UDim.new(0, 8),
+            Parent = wm
+        })
 
-        local lbl = Instance.new("TextLabel")
-        lbl.Size = UDim2.new(1, 0, 1, 0)
-        lbl.BackgroundTransparency = 1
-        lbl.Font = Enum.Font.SourceSansBold
-        lbl.Text = text
-        lbl.TextColor3 = library.theme.text
-        lbl.TextSize = 11
-        lbl.Parent = wm
+        local lbl = library:create("TextLabel", {
+            Size = UDim2.new(1, 0, 1, 0),
+            BackgroundTransparency = 1,
+            Font = Enum.Font.SourceSansBold,
+            Text = text,
+            TextColor3 = library.theme.text,
+            TextSize = 11,
+            Parent = wm
+        })
 
         return {
             set = function(new_text) lbl.Text = new_text end,
@@ -200,70 +243,76 @@ function library:window(cfg)
         }
     end
 
-    -- Floating window method (ex: AI Anti-Aim Statistics)
+    -- Floating window (Statistics)
     function window_obj:floating(fcfg)
         fcfg = fcfg or {}
         local title = fcfg.title or "Statistics"
         local size = fcfg.size or UDim2.new(0, 160, 0, 175)
         local pos = fcfg.position or UDim2.new(0.5, -345, 0.5, -170)
 
-        local fw = Instance.new("Frame")
-        fw.Name = "FloatingWindow"
-        fw.Size = size
-        fw.Position = pos
-        fw.BackgroundColor3 = library.theme.main_bg
-        fw.BorderSizePixel = 0
-        fw.Parent = screen
+        local fw = library:create("Frame", {
+            Name = "FloatingWindow",
+            Size = size,
+            Position = pos,
+            BackgroundColor3 = library.theme.main_bg,
+            BorderSizePixel = 0,
+            Parent = screen
+        })
         make_corner(fw, 3)
         make_stroke(fw, library.theme.border, 1)
         make_draggable(fw)
 
-        local header = Instance.new("Frame")
-        header.Size = UDim2.new(1, 0, 0, 20)
-        header.BackgroundColor3 = library.theme.panel_bg
-        header.BorderSizePixel = 0
-        header.Parent = fw
+        local header = library:create("Frame", {
+            Size = UDim2.new(1, 0, 0, 20),
+            BackgroundColor3 = library.theme.panel_bg,
+            BorderSizePixel = 0,
+            Parent = fw
+        })
         make_corner(header, 3)
 
-        local title_lbl = Instance.new("TextLabel")
-        title_lbl.Size = UDim2.new(1, 0, 1, 0)
-        title_lbl.BackgroundTransparency = 1
-        title_lbl.Font = Enum.Font.SourceSansBold
-        title_lbl.Text = title
-        title_lbl.TextColor3 = library.theme.text
-        title_lbl.TextSize = 11
-        title_lbl.Parent = header
+        library:create("TextLabel", {
+            Size = UDim2.new(1, 0, 1, 0),
+            BackgroundTransparency = 1,
+            Font = Enum.Font.SourceSansBold,
+            Text = title,
+            TextColor3 = library.theme.text,
+            TextSize = 11,
+            Parent = header
+        })
 
         local float_obj = { frame = fw, next_y = 26 }
 
         function float_obj:row(lbl_text, val_text, val_col)
-            local row = Instance.new("Frame")
-            row.Size = UDim2.new(1, -16, 0, 14)
-            row.Position = UDim2.new(0, 8, 0, self.next_y)
-            row.BackgroundTransparency = 1
-            row.Parent = fw
+            local row = library:create("Frame", {
+                Size = UDim2.new(1, -16, 0, 14),
+                Position = UDim2.new(0, 8, 0, self.next_y),
+                BackgroundTransparency = 1,
+                Parent = fw
+            })
             self.next_y = self.next_y + 16
 
-            local l = Instance.new("TextLabel")
-            l.Size = UDim2.new(0.6, 0, 1, 0)
-            l.BackgroundTransparency = 1
-            l.Font = Enum.Font.SourceSansBold
-            l.Text = lbl_text
-            l.TextColor3 = library.theme.text
-            l.TextSize = 11
-            l.TextXAlignment = Enum.TextXAlignment.Left
-            l.Parent = row
+            library:create("TextLabel", {
+                Size = UDim2.new(0.6, 0, 1, 0),
+                BackgroundTransparency = 1,
+                Font = Enum.Font.SourceSansBold,
+                Text = lbl_text,
+                TextColor3 = library.theme.text,
+                TextSize = 11,
+                TextXAlignment = Enum.TextXAlignment.Left,
+                Parent = row
+            })
 
-            local v = Instance.new("TextLabel")
-            v.Size = UDim2.new(0.4, 0, 1, 0)
-            v.Position = UDim2.new(0.6, 0, 0, 0)
-            v.BackgroundTransparency = 1
-            v.Font = Enum.Font.SourceSansBold
-            v.Text = val_text
-            v.TextColor3 = val_col or library.theme.text
-            v.TextSize = 11
-            v.TextXAlignment = Enum.TextXAlignment.Right
-            v.Parent = row
+            local v = library:create("TextLabel", {
+                Size = UDim2.new(0.4, 0, 1, 0),
+                Position = UDim2.new(0.6, 0, 0, 0),
+                BackgroundTransparency = 1,
+                Font = Enum.Font.SourceSansBold,
+                Text = val_text,
+                TextColor3 = val_col or library.theme.text,
+                TextSize = 11,
+                TextXAlignment = Enum.TextXAlignment.Right,
+                Parent = row
+            })
 
             return {
                 set = function(t, c)
@@ -274,19 +323,21 @@ function library:window(cfg)
         end
 
         function float_obj:progress(percent, col)
-            local bg = Instance.new("Frame")
-            bg.Size = UDim2.new(1, -16, 0, 6)
-            bg.Position = UDim2.new(0, 8, 0, self.next_y + 4)
-            bg.BackgroundColor3 = library.theme.element_bg
-            bg.BorderSizePixel = 0
-            bg.Parent = fw
+            local bg = library:create("Frame", {
+                Size = UDim2.new(1, -16, 0, 6),
+                Position = UDim2.new(0, 8, 0, self.next_y + 4),
+                BackgroundColor3 = library.theme.element_bg,
+                BorderSizePixel = 0,
+                Parent = fw
+            })
             make_stroke(bg, library.theme.border_dark, 1)
 
-            local fill = Instance.new("Frame")
-            fill.Size = UDim2.new(math.clamp((percent or 50) / 100, 0, 1), 0, 1, 0)
-            fill.BackgroundColor3 = col or library.theme.accent
-            fill.BorderSizePixel = 0
-            fill.Parent = bg
+            local fill = library:create("Frame", {
+                Size = UDim2.new(math.clamp((percent or 50) / 100, 0, 1), 0, 1, 0),
+                BackgroundColor3 = col or library.theme.accent,
+                BorderSizePixel = 0,
+                Parent = bg
+            })
 
             self.next_y = self.next_y + 16
             return {
@@ -304,69 +355,75 @@ function library:window(cfg)
     -- ==============================================================================
     function window_obj:tab(tcfg)
         tcfg = tcfg or {}
-        local tab_name = tcfg.name or "Tab"
-        local tab_icon = tcfg.icon or tab_name:sub(1, 1)
+        local tab_name = tcfg.name or tcfg.Name or "Tab"
+        local tab_icon = tcfg.icon or tcfg.Icon or tab_name:sub(1, 1)
 
-        local tab_btn = Instance.new("TextButton")
-        tab_btn.Name = "Tab_" .. tab_name
-        tab_btn.Size = UDim2.new(0, 34, 0, 32)
-        tab_btn.BackgroundColor3 = library.theme.main_bg
-        tab_btn.BorderSizePixel = 0
-        tab_btn.Text = ""
-        tab_btn.AutoButtonColor = false
-        tab_btn.Parent = self.sidebar
+        local tab_btn = library:create("TextButton", {
+            Name = "Tab_" .. tab_name,
+            Size = UDim2.new(0, 34, 0, 32),
+            BackgroundColor3 = library.theme.main_bg,
+            BorderSizePixel = 0,
+            Text = "",
+            AutoButtonColor = false,
+            Parent = self.sidebar
+        })
         make_corner(tab_btn, 4)
 
         local stroke = make_stroke(tab_btn, library.theme.border_dark, 1)
         stroke.Enabled = false
 
         local icon_label
-        if tostring(tab_icon):find("rbxassetid") then
-            icon_label = Instance.new("ImageLabel")
-            icon_label.Size = UDim2.new(0, 18, 0, 18)
-            icon_label.Position = UDim2.new(0.5, -9, 0.5, -9)
-            icon_label.BackgroundTransparency = 1
-            icon_label.Image = tab_icon
-            icon_label.ImageColor3 = library.theme.text_dark
-            icon_label.Parent = tab_btn
+        if tostring(tab_icon):find("rbxassetid") or tostring(tab_icon):find("http") then
+            icon_label = library:create("ImageLabel", {
+                Size = UDim2.new(0, 18, 0, 18),
+                Position = UDim2.new(0.5, -9, 0.5, -9),
+                BackgroundTransparency = 1,
+                Image = tab_icon,
+                ImageColor3 = library.theme.text_dark,
+                Parent = tab_btn
+            })
         else
-            icon_label = Instance.new("TextLabel")
-            icon_label.Size = UDim2.new(1, 0, 1, 0)
-            icon_label.BackgroundTransparency = 1
-            icon_label.Font = Enum.Font.SourceSansBold
-            icon_label.Text = tab_icon
-            icon_label.TextColor3 = library.theme.text_dark
-            icon_label.TextSize = 16
-            icon_label.Parent = tab_btn
+            icon_label = library:create("TextLabel", {
+                Size = UDim2.new(1, 0, 1, 0),
+                BackgroundTransparency = 1,
+                Font = Enum.Font.SourceSansBold,
+                Text = tab_icon,
+                TextColor3 = library.theme.text_dark,
+                TextSize = 16,
+                Parent = tab_btn
+            })
         end
 
         -- Page Tab
-        local tab_page = Instance.new("Frame")
-        tab_page.Name = "Page_" .. tab_name
-        tab_page.Size = UDim2.new(1, 0, 1, 0)
-        tab_page.BackgroundTransparency = 1
-        tab_page.Visible = false
-        tab_page.Parent = self.content
+        local tab_page = library:create("Frame", {
+            Name = "Page_" .. tab_name,
+            Size = UDim2.new(1, 0, 1, 0),
+            BackgroundTransparency = 1,
+            Visible = false,
+            Parent = self.content
+        })
 
-        -- Barre des sous-onglets horizontaux en haut
-        local subtab_bar = Instance.new("Frame")
-        subtab_bar.Name = "SubTabsBar"
-        subtab_bar.Size = UDim2.new(1, 0, 0, 20)
-        subtab_bar.BackgroundTransparency = 1
-        subtab_bar.Parent = tab_page
+        local subtab_bar = library:create("Frame", {
+            Name = "SubTabsBar",
+            Size = UDim2.new(1, 0, 0, 20),
+            BackgroundTransparency = 1,
+            Parent = tab_page
+        })
 
-        local subtab_layout = Instance.new("UIListLayout")
-        subtab_layout.FillDirection = Enum.FillDirection.Horizontal
-        subtab_layout.SortOrder = Enum.SortOrder.LayoutOrder
-        subtab_layout.Padding = UDim.new(0, 6)
-        subtab_layout.Parent = subtab_bar
+        library:create("UIListLayout", {
+            FillDirection = Enum.FillDirection.Horizontal,
+            SortOrder = Enum.SortOrder.LayoutOrder,
+            Padding = UDim.new(0, 6),
+            Parent = subtab_bar
+        })
 
-        local sub_content = Instance.new("Frame")
-        sub_content.Name = "SubContent"
-        sub_content.Size = UDim2.new(1, 0, 1, -24)
-        sub_content.Position = UDim2.new(0, 0, 0, 24)
-        sub_content.BackgroundTransparency = 1
-        sub_content.Parent = tab_page
+        local sub_content = library:create("Frame", {
+            Name = "SubContent",
+            Size = UDim2.new(1, 0, 1, -24),
+            Position = UDim2.new(0, 0, 0, 24),
+            BackgroundTransparency = 1,
+            Parent = tab_page
+        })
 
         local tab_obj = {
             name = tab_name,
@@ -414,51 +471,53 @@ function library:window(cfg)
         -- ==============================================================================
         function tab_obj:subtab(scfg)
             scfg = scfg or {}
-            local sub_name = scfg.name or "SubTab"
-            local sub_label = scfg.label or sub_name
+            local sub_name = scfg.name or scfg.Name or "SubTab"
+            local sub_label = scfg.label or scfg.Label or sub_name
 
-            local sub_btn = Instance.new("TextButton")
-            sub_btn.Name = "SubBtn_" .. sub_name
-            sub_btn.AutomaticSize = Enum.AutomaticSize.X
-            sub_btn.Size = UDim2.new(0, 24, 0, 18)
-            sub_btn.BackgroundColor3 = library.theme.panel_bg
-            sub_btn.BorderSizePixel = 0
-            sub_btn.Font = Enum.Font.SourceSansBold
-            sub_btn.Text = "  " .. sub_label .. "  "
-            sub_btn.TextColor3 = library.theme.text_dim
-            sub_btn.TextSize = 11
-            sub_btn.AutoButtonColor = false
-            sub_btn.Parent = subtab_bar
+            local sub_btn = library:create("TextButton", {
+                Name = "SubBtn_" .. sub_name,
+                AutomaticSize = Enum.AutomaticSize.X,
+                Size = UDim2.new(0, 24, 0, 18),
+                BackgroundColor3 = library.theme.panel_bg,
+                BorderSizePixel = 0,
+                Font = Enum.Font.SourceSansBold,
+                Text = "  " .. sub_label .. "  ",
+                TextColor3 = library.theme.text_dim,
+                TextSize = 11,
+                AutoButtonColor = false,
+                Parent = subtab_bar
+            })
             make_corner(sub_btn, 3)
-            local sub_stroke = make_stroke(sub_btn, library.theme.border_dark, 1)
+            make_stroke(sub_btn, library.theme.border_dark, 1)
 
-            -- Conteneur à deux colonnes A et B
-            local sub_view = Instance.new("Frame")
-            sub_view.Name = "View_" .. sub_name
-            sub_view.Size = UDim2.new(1, 0, 1, 0)
-            sub_view.BackgroundTransparency = 1
-            sub_view.Visible = false
-            sub_view.Parent = sub_content
+            -- Conteneur colonnes A et B
+            local sub_view = library:create("Frame", {
+                Name = "View_" .. sub_name,
+                Size = UDim2.new(1, 0, 1, 0),
+                BackgroundTransparency = 1,
+                Visible = false,
+                Parent = sub_content
+            })
 
-            -- Colonne A (Gauche)
-            local col_a = Instance.new("Frame")
-            col_a.Name = "ColumnA"
-            col_a.Size = UDim2.new(0.5, -4, 1, 0)
-            col_a.Position = UDim2.new(0, 0, 0, 0)
-            col_a.BackgroundColor3 = library.theme.panel_bg
-            col_a.BorderSizePixel = 0
-            col_a.Parent = sub_view
+            local col_a = library:create("Frame", {
+                Name = "ColumnA",
+                Size = UDim2.new(0.5, -4, 1, 0),
+                Position = UDim2.new(0, 0, 0, 0),
+                BackgroundColor3 = library.theme.panel_bg,
+                BorderSizePixel = 0,
+                Parent = sub_view
+            })
             make_corner(col_a, 3)
             make_stroke(col_a, library.theme.border_dark, 1)
 
-            -- Colonne B (Droite)
-            local col_b = Instance.new("Frame")
-            col_b.Name = "ColumnB"
-            col_b.Size = UDim2.new(0.5, -4, 1, 0)
-            col_b.Position = UDim2.new(0.5, 4, 0, 0)
-            col_b.BackgroundColor3 = library.theme.panel_bg
-            col_b.BorderSizePixel = 0
-            col_b.Parent = sub_view
+            local col_b = library:create("Frame", {
+                Name = "ColumnB",
+                Size = UDim2.new(0.5, -4, 1, 0),
+                Position = UDim2.new(0.5, 4, 0, 0),
+                BackgroundColor3 = library.theme.panel_bg,
+                BorderSizePixel = 0,
+                Parent = sub_view
+            })
             make_corner(col_b, 3)
             make_stroke(col_b, library.theme.border_dark, 1)
 
@@ -490,366 +549,615 @@ function library:window(cfg)
             -- ==============================================================================
             function sub_obj:section(sec_cfg)
                 sec_cfg = sec_cfg or {}
-                local side = sec_cfg.side or "left"
-                local sec_name = sec_cfg.name or "Section"
-                local sec_label = sec_cfg.label or (side == "left" and "A" or "B")
+                local side = sec_cfg.side or sec_cfg.Side or "left"
+                local sec_name = sec_cfg.name or sec_cfg.Name or "Section"
+                local sec_label = sec_cfg.label or sec_cfg.Label or (side == "left" and "A" or "B")
                 local parent_col = (side == "left" and col_a or col_b)
 
-                local header_frame = Instance.new("Frame")
-                header_frame.Name = "Header"
-                header_frame.Size = UDim2.new(1, -12, 0, 18)
-                header_frame.Position = UDim2.new(0, 6, 0, 4)
-                header_frame.BackgroundTransparency = 1
-                header_frame.Parent = parent_col
+                local header_frame = library:create("Frame", {
+                    Name = "Header",
+                    Size = UDim2.new(1, -12, 0, 18),
+                    Position = UDim2.new(0, 6, 0, 4),
+                    BackgroundTransparency = 1,
+                    Parent = parent_col
+                })
 
-                local badge = Instance.new("TextLabel")
-                badge.Size = UDim2.new(0, 12, 0, 12)
-                badge.Position = UDim2.new(0, 0, 0.5, -6)
-                badge.BackgroundColor3 = library.theme.main_bg
-                badge.BorderSizePixel = 0
-                badge.Font = Enum.Font.SourceSansBold
-                badge.Text = sec_label
-                badge.TextColor3 = library.theme.text_dark
-                badge.TextSize = 10
-                badge.Parent = header_frame
+                local badge = library:create("TextLabel", {
+                    Size = UDim2.new(0, 12, 0, 12),
+                    Position = UDim2.new(0, 0, 0.5, -6),
+                    BackgroundColor3 = library.theme.main_bg,
+                    BorderSizePixel = 0,
+                    Font = Enum.Font.SourceSansBold,
+                    Text = sec_label,
+                    TextColor3 = library.theme.text_dark,
+                    TextSize = 10,
+                    Parent = header_frame
+                })
                 make_corner(badge, 2)
                 make_stroke(badge, library.theme.border_dark, 1)
 
-                local title = Instance.new("TextLabel")
-                title.Size = UDim2.new(1, -18, 1, 0)
-                title.Position = UDim2.new(0, 16, 0, 0)
-                title.BackgroundTransparency = 1
-                title.Font = Enum.Font.SourceSansBold
-                title.Text = sec_name
-                title.TextColor3 = library.theme.text
-                title.TextSize = 11
-                title.TextXAlignment = Enum.TextXAlignment.Left
-                title.Parent = header_frame
+                library:create("TextLabel", {
+                    Size = UDim2.new(1, -18, 1, 0),
+                    Position = UDim2.new(0, 16, 0, 0),
+                    BackgroundTransparency = 1,
+                    Font = Enum.Font.SourceSansBold,
+                    Text = sec_name,
+                    TextColor3 = library.theme.text,
+                    TextSize = 11,
+                    TextXAlignment = Enum.TextXAlignment.Left,
+                    Parent = header_frame
+                })
 
-                local scroll = Instance.new("ScrollingFrame")
-                scroll.Name = "Container"
-                scroll.Size = UDim2.new(1, -12, 1, -26)
-                scroll.Position = UDim2.new(0, 6, 0, 24)
-                scroll.BackgroundTransparency = 1
-                scroll.BorderSizePixel = 0
-                scroll.ScrollBarThickness = 2
-                scroll.ScrollBarImageColor3 = library.theme.accent
-                scroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
-                scroll.CanvasSize = UDim2.new(0, 0, 0, 0)
-                scroll.Parent = parent_col
+                local scroll = library:create("ScrollingFrame", {
+                    Name = "Container",
+                    Size = UDim2.new(1, -12, 1, -26),
+                    Position = UDim2.new(0, 6, 0, 24),
+                    BackgroundTransparency = 1,
+                    BorderSizePixel = 0,
+                    ScrollBarThickness = 2,
+                    ScrollBarImageColor3 = library.theme.accent,
+                    AutomaticCanvasSize = Enum.AutomaticSize.Y,
+                    CanvasSize = UDim2.new(0, 0, 0, 0),
+                    Parent = parent_col
+                })
 
-                local list = Instance.new("UIListLayout")
-                list.SortOrder = Enum.SortOrder.LayoutOrder
-                list.Padding = UDim.new(0, 6)
-                list.Parent = scroll
+                library:create("UIListLayout", {
+                    SortOrder = Enum.SortOrder.LayoutOrder,
+                    Padding = UDim.new(0, 6),
+                    Parent = scroll
+                })
 
-                local section_obj = { container = scroll }
+                local section_obj = { container = scroll, elements = scroll, items = { elements = scroll } }
 
-                -- TOGGLE / CHECKBOX
-                function section_obj:toggle(opts)
-                    opts = opts or {}
-                    local text = opts.name or "Toggle"
-                    local flag = opts.flag or text
-                    local default = opts.default or false
-                    local callback = opts.callback or function() end
+                -- =====================================================================
+                -- MONOLITH / SKEET TOGGLE
+                -- =====================================================================
+                function section_obj:Toggle(options)
+                    options = options or {}
+                    local text = options.name or options.Name or "Toggle"
+                    local flag = options.flag or options.Flag or text
+                    local default = options.default or options.Default or false
+                    local callback = options.callback or options.Callback or function() end
 
-                    local btn = Instance.new("TextButton")
-                    btn.Size = UDim2.new(1, 0, 0, 14)
-                    btn.BackgroundTransparency = 1
-                    btn.Text = ""
-                    btn.Parent = scroll
+                    local obj = library:create("TextButton", {
+                        Parent = scroll,
+                        Text = "",
+                        Name = text,
+                        BackgroundTransparency = 1,
+                        Size = UDim2.new(1, 0, 0, 14),
+                        BorderSizePixel = 0,
+                        AutoButtonColor = false
+                    })
 
-                    local box = Instance.new("Frame")
-                    box.Size = UDim2.new(0, 9, 0, 9)
-                    box.Position = UDim2.new(0, 0, 0.5, -4)
-                    box.BackgroundColor3 = library.theme.main_bg
-                    box.BorderSizePixel = 0
-                    box.Parent = btn
-                    make_corner(box, 2)
-                    make_stroke(box, library.theme.border, 1)
+                    local toggle_outline = library:create("Frame", {
+                        Parent = obj,
+                        BackgroundTransparency = 1,
+                        Name = "Outline",
+                        BorderColor3 = Color3.fromRGB(0, 0, 0),
+                        Size = UDim2.new(0, 12, 0, 12),
+                        Position = UDim2.new(0, 0, 0.5, -6),
+                        BorderSizePixel = 0,
+                        BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+                    })
 
-                    local check = Instance.new("Frame")
-                    check.Size = UDim2.new(0, 5, 0, 5)
-                    check.Position = UDim2.new(0.5, -2, 0.5, -2)
-                    check.BackgroundColor3 = library.theme.accent
-                    check.BorderSizePixel = 0
-                    check.Visible = default
-                    check.Parent = box
-                    make_corner(check, 1)
+                    local toggle_shading = library:create("Frame", {
+                        Parent = toggle_outline,
+                        Name = "Shading",
+                        BackgroundTransparency = 1,
+                        Position = UDim2.new(0, 1, 0, 1),
+                        BorderColor3 = Color3.fromRGB(0, 0, 0),
+                        Size = UDim2.new(1, -2, 1, -2),
+                        BorderSizePixel = 0,
+                        BackgroundColor3 = Color3.fromRGB(92, 92, 92)
+                    })
 
-                    local lbl = Instance.new("TextLabel")
-                    lbl.Size = UDim2.new(1, -16, 1, 0)
-                    lbl.Position = UDim2.new(0, 14, 0, 0)
-                    lbl.BackgroundTransparency = 1
-                    lbl.Font = Enum.Font.SourceSans
-                    lbl.Text = text
-                    lbl.TextColor3 = library.theme.text
-                    lbl.TextSize = 11
-                    lbl.TextXAlignment = Enum.TextXAlignment.Left
-                    lbl.Parent = btn
+                    local toggle_inline = library:create("Frame", {
+                        Parent = toggle_shading,
+                        Name = "Inline",
+                        Position = UDim2.new(0, 1, 0, 1),
+                        BorderColor3 = Color3.fromRGB(0, 0, 0),
+                        Size = UDim2.new(1, -2, 1, -2),
+                        BorderSizePixel = 0,
+                        BackgroundColor3 = Color3.fromRGB(54, 54, 54)
+                    })
 
-                    local state = default
-                    local function set(v)
-                        state = v
-                        check.Visible = state
-                        library.flags[flag] = state
-                        callback(state)
+                    local lbl = library:create("TextLabel", {
+                        FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.SemiBold, Enum.FontStyle.Normal),
+                        TextColor3 = Color3.fromRGB(178, 178, 178),
+                        BorderColor3 = Color3.fromRGB(0, 0, 0),
+                        Text = text,
+                        Parent = obj,
+                        BackgroundTransparency = 1,
+                        Position = UDim2.new(0, 18, 0, 0),
+                        Size = UDim2.new(1, -20, 1, 0),
+                        BorderSizePixel = 0,
+                        TextXAlignment = Enum.TextXAlignment.Left,
+                        TextSize = 11,
+                    })
+
+                    local state = false
+                    local function set(bool)
+                        state = bool
+                        library:tween(lbl, {TextColor3 = bool and Color3.fromRGB(255, 255, 255) or Color3.fromRGB(178, 178, 178)})
+                        library:tween(toggle_outline, {BackgroundTransparency = bool and 0 or 1})
+                        library:tween(toggle_shading, {BackgroundTransparency = bool and 0 or 1})
+                        library:tween(toggle_inline, {BackgroundColor3 = bool and Color3.fromRGB(255, 255, 255) or Color3.fromRGB(74, 74, 74)})
+
+                        library.flags[flag] = bool
+                        callback(bool)
                     end
 
-                    btn.MouseButton1Click:Connect(function() set(not state) end)
+                    obj.MouseButton1Click:Connect(function()
+                        set(not state)
+                    end)
+
                     set(default)
                     library.config_flags[flag] = set
-
                     return { set = set }
                 end
+                section_obj.toggle = section_obj.Toggle
 
-                -- BUTTON
-                function section_obj:button(opts)
-                    opts = opts or {}
-                    local text = opts.name or "Button"
-                    local callback = opts.callback or function() end
+                -- =====================================================================
+                -- MONOLITH / SKEET SLIDER
+                -- =====================================================================
+                function section_obj:Slider(options)
+                    options = options or {}
+                    local text = options.name or options.Name or "Slider"
+                    local suffix = options.suffix or options.Suffix or ""
+                    local flag = options.flag or options.Flag or text
+                    local callback = options.callback or options.Callback or function() end
+                    local min = options.min or options.minimum or options.Min or options.Minimum or 0
+                    local max = options.max or options.maximum or options.Max or options.Maximum or 100
+                    local intervals = options.interval or options.decimal or options.Interval or options.Decimal or 1
+                    local default = options.default or options.Default or min
+                    local value = default
 
-                    local btn = Instance.new("TextButton")
-                    btn.Size = UDim2.new(1, 0, 0, 18)
-                    btn.BackgroundColor3 = library.theme.element_bg
-                    btn.BorderSizePixel = 0
-                    btn.Font = Enum.Font.SourceSans
-                    btn.Text = text
-                    btn.TextColor3 = library.theme.text
-                    btn.TextSize = 11
-                    btn.AutoButtonColor = false
-                    btn.Parent = scroll
-                    make_corner(btn, 2)
-                    make_stroke(btn, library.theme.border_dark, 1)
+                    local holder = library:create("Frame", {
+                        Parent = scroll,
+                        Name = text,
+                        BackgroundTransparency = 1,
+                        Size = UDim2.new(1, 0, 0, 24),
+                        BorderSizePixel = 0,
+                    })
 
-                    btn.MouseEnter:Connect(function() btn.BackgroundColor3 = Color3.fromRGB(35, 35, 35) end)
-                    btn.MouseLeave:Connect(function() btn.BackgroundColor3 = library.theme.element_bg end)
-                    btn.MouseButton1Click:Connect(callback)
+                    local name_lbl = library:create("TextLabel", {
+                        FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.SemiBold, Enum.FontStyle.Normal),
+                        TextColor3 = Color3.fromRGB(178, 178, 178),
+                        Text = text,
+                        Parent = holder,
+                        BackgroundTransparency = 1,
+                        Position = UDim2.new(0, 0, 0, 0),
+                        Size = UDim2.new(1, -45, 0, 11),
+                        BorderSizePixel = 0,
+                        TextSize = 10,
+                        TextXAlignment = Enum.TextXAlignment.Left,
+                    })
 
-                    return btn
-                end
+                    local val_lbl = library:create("TextLabel", {
+                        FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.SemiBold, Enum.FontStyle.Normal),
+                        TextColor3 = Color3.fromRGB(255, 255, 255),
+                        Text = tostring(default) .. suffix,
+                        Parent = holder,
+                        BackgroundTransparency = 1,
+                        Position = UDim2.new(1, -45, 0, 0),
+                        Size = UDim2.new(0, 45, 0, 11),
+                        BorderSizePixel = 0,
+                        TextSize = 10,
+                        TextXAlignment = Enum.TextXAlignment.Right,
+                    })
 
-                -- SLIDER
-                function section_obj:slider(opts)
-                    opts = opts or {}
-                    local text = opts.name or "Slider"
-                    local flag = opts.flag or text
-                    local min = opts.min or 0
-                    local max = opts.max or 100
-                    local default = opts.default or min
-                    local suffix = opts.suffix or ""
-                    local callback = opts.callback or function() end
+                    local slider_parent = library:create("TextButton", {
+                        Parent = holder,
+                        BackgroundTransparency = 1,
+                        Text = "",
+                        Position = UDim2.new(0, 0, 0, 13),
+                        Size = UDim2.new(1, 0, 0, 9),
+                        BorderSizePixel = 0,
+                        AutoButtonColor = false,
+                    })
 
-                    local holder = Instance.new("Frame")
-                    holder.Size = UDim2.new(1, 0, 0, 24)
-                    holder.BackgroundTransparency = 1
-                    holder.Parent = scroll
+                    local slider_holder = library:create("Frame", {
+                        AnchorPoint = Vector2.new(0, 0.5),
+                        Parent = slider_parent,
+                        Position = UDim2.new(0, 0, 0.5, 0),
+                        BorderColor3 = Color3.fromRGB(0, 0, 0),
+                        Size = UDim2.new(1, 0, 0, 5),
+                        BorderSizePixel = 0,
+                        BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+                    })
 
-                    local name_lbl = Instance.new("TextLabel")
-                    name_lbl.Size = UDim2.new(1, -40, 0, 11)
-                    name_lbl.BackgroundTransparency = 1
-                    name_lbl.Font = Enum.Font.SourceSans
-                    name_lbl.Text = text
-                    name_lbl.TextColor3 = library.theme.text
-                    name_lbl.TextSize = 10
-                    name_lbl.TextXAlignment = Enum.TextXAlignment.Left
-                    name_lbl.Parent = holder
+                    local gradient_holder = library:create("Frame", {
+                        Parent = slider_holder,
+                        Position = UDim2.new(0, 1, 0, 1),
+                        BorderColor3 = Color3.fromRGB(0, 0, 0),
+                        Size = UDim2.new(1, -2, 1, -2),
+                        BorderSizePixel = 0,
+                        BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+                    })
 
-                    local val_lbl = Instance.new("TextLabel")
-                    val_lbl.Size = UDim2.new(0, 40, 0, 11)
-                    val_lbl.Position = UDim2.new(1, -40, 0, 0)
-                    val_lbl.BackgroundTransparency = 1
-                    val_lbl.Font = Enum.Font.SourceSansBold
-                    val_lbl.Text = tostring(default) .. suffix
-                    val_lbl.TextColor3 = library.theme.yellow
-                    val_lbl.TextSize = 10
-                    val_lbl.TextXAlignment = Enum.TextXAlignment.Right
-                    val_lbl.Parent = holder
+                    library:create("UIGradient", {
+                        Color = ColorSequence.new({
+                            ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 255, 255)),
+                            ColorSequenceKeypoint.new(1, Color3.fromRGB(93, 93, 93))
+                        }),
+                        Parent = gradient_holder
+                    })
 
-                    local track = Instance.new("TextButton")
-                    track.Size = UDim2.new(1, 0, 0, 8)
-                    track.Position = UDim2.new(0, 0, 0, 13)
-                    track.BackgroundColor3 = library.theme.element_bg
-                    track.BorderSizePixel = 0
-                    track.Text = ""
-                    track.AutoButtonColor = false
-                    track.Parent = holder
-                    make_corner(track, 2)
-                    make_stroke(track, library.theme.border_dark, 1)
+                    local slider_thumb = library:create("Frame", {
+                        AnchorPoint = Vector2.new(0.5, 0.5),
+                        Parent = gradient_holder,
+                        Position = UDim2.new(0, 0, 0.5, 0),
+                        BorderColor3 = Color3.fromRGB(0, 0, 0),
+                        Size = UDim2.new(0, 5, 0, 9),
+                        BorderSizePixel = 0,
+                        BackgroundColor3 = Color3.fromRGB(0, 0, 0),
+                        ZIndex = 3,
+                    })
 
-                    local fill = Instance.new("Frame")
-                    fill.Size = UDim2.new((default - min) / (max - min), 0, 1, 0)
-                    fill.BackgroundColor3 = library.theme.yellow
-                    fill.BorderSizePixel = 0
-                    fill.Parent = track
-                    make_corner(fill, 2)
+                    library:create("Frame", {
+                        Parent = slider_thumb,
+                        Position = UDim2.new(0, 1, 0, 1),
+                        BorderColor3 = Color3.fromRGB(0, 0, 0),
+                        Size = UDim2.new(1, -2, 1, -2),
+                        BorderSizePixel = 0,
+                        BackgroundColor3 = Color3.fromRGB(255, 255, 255),
+                        ZIndex = 4,
+                    })
 
                     local function set(v)
-                        local val = math.clamp(math.floor(v + 0.5), min, max)
-                        fill.Size = UDim2.new((val - min) / (max - min), 0, 1, 0)
-                        val_lbl.Text = tostring(val) .. suffix
-                        library.flags[flag] = val
-                        callback(val)
+                        value = math.clamp(library:round(v, intervals), min, max)
+                        local pct = (value - min) / (max - min)
+                        slider_thumb.Position = UDim2.new(pct, 0, 0.5, 0)
+                        val_lbl.Text = tostring(value) .. suffix
+                        library.flags[flag] = value
+                        callback(value)
                     end
 
                     local dragging = false
-                    track.InputBegan:Connect(function(i)
-                        if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
+                    slider_parent.InputBegan:Connect(function(input)
+                        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
                             dragging = true
-                            local percent = math.clamp((i.Position.X - track.AbsolutePosition.X) / track.AbsoluteSize.X, 0, 1)
-                            set(min + ((max - min) * percent))
+                            local sx = math.clamp((input.Position.X - gradient_holder.AbsolutePosition.X) / gradient_holder.AbsoluteSize.X, 0, 1)
+                            set(((max - min) * sx) + min)
                         end
                     end)
-                    UserInputService.InputEnded:Connect(function(i)
-                        if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
+
+                    library:connection(UserInputService.InputChanged, function(input)
+                        if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+                            local sx = math.clamp((input.Position.X - gradient_holder.AbsolutePosition.X) / gradient_holder.AbsoluteSize.X, 0, 1)
+                            set(((max - min) * sx) + min)
+                        end
+                    end)
+
+                    library:connection(UserInputService.InputEnded, function(input)
+                        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
                             dragging = false
                         end
                     end)
-                    UserInputService.InputChanged:Connect(function(i)
-                        if dragging and (i.UserInputType == Enum.UserInputType.MouseMovement or i.UserInputType == Enum.UserInputType.Touch) then
-                            local percent = math.clamp((i.Position.X - track.AbsolutePosition.X) / track.AbsoluteSize.X, 0, 1)
-                            set(min + ((max - min) * percent))
+
+                    set(default)
+                    library.config_flags[flag] = set
+                    return { set = set }
+                end
+                section_obj.slider = section_obj.Slider
+
+                -- =====================================================================
+                -- MONOLITH / SKEET DROPDOWN
+                -- =====================================================================
+                function section_obj:Dropdown(options)
+                    options = options or {}
+                    local text = options.name or options.Name or "Dropdown"
+                    local flag = options.flag or options.Flag or text
+                    local items_list = options.items or options.Items or {"1", "2", "3"}
+                    local callback = options.callback or options.Callback or function() end
+                    local multi = options.multi or options.Multi or false
+
+                    local default = options.default or options.Default or (multi and {items_list[1]}) or items_list[1] or "None"
+                    local open = false
+                    local option_instances = {}
+                    local multi_items = {}
+
+                    local holder = library:create("Frame", {
+                        Parent = scroll,
+                        Name = text,
+                        BackgroundTransparency = 1,
+                        Size = UDim2.new(1, 0, 0, 32),
+                        BorderSizePixel = 0,
+                    })
+
+                    library:create("TextLabel", {
+                        FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.SemiBold, Enum.FontStyle.Normal),
+                        TextColor3 = Color3.fromRGB(178, 178, 178),
+                        Text = text,
+                        Parent = holder,
+                        BackgroundTransparency = 1,
+                        Position = UDim2.new(0, 0, 0, 0),
+                        Size = UDim2.new(1, 0, 0, 11),
+                        BorderSizePixel = 0,
+                        TextSize = 10,
+                        TextXAlignment = Enum.TextXAlignment.Left,
+                    })
+
+                    local dropdown_outline = library:create("TextButton", {
+                        Parent = holder,
+                        Text = "",
+                        AutoButtonColor = false,
+                        Position = UDim2.new(0, 0, 0, 13),
+                        Size = UDim2.new(1, 0, 0, 17),
+                        BorderSizePixel = 0,
+                        BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+                    })
+
+                    local dropdown_shading = library:create("Frame", {
+                        Parent = dropdown_outline,
+                        Size = UDim2.new(1, -2, 1, -2),
+                        Position = UDim2.new(0, 1, 0, 1),
+                        BorderSizePixel = 0,
+                        BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+                    })
+
+                    library:create("UIGradient", {
+                        Rotation = 90,
+                        Parent = dropdown_shading,
+                        Color = ColorSequence.new({
+                            ColorSequenceKeypoint.new(0, Color3.fromRGB(33, 33, 33)),
+                            ColorSequenceKeypoint.new(1, Color3.fromRGB(8, 8, 8))
+                        })
+                    })
+
+                    local inner_text = library:create("TextLabel", {
+                        FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.SemiBold, Enum.FontStyle.Normal),
+                        TextColor3 = Color3.fromRGB(178, 178, 178),
+                        Text = "None",
+                        Parent = dropdown_shading,
+                        Size = UDim2.new(1, -18, 1, 0),
+                        Position = UDim2.new(0, 6, 0, 0),
+                        BackgroundTransparency = 1,
+                        BorderSizePixel = 0,
+                        TextSize = 10,
+                        TextXAlignment = Enum.TextXAlignment.Left,
+                    })
+
+                    local arrow = library:create("ImageLabel", {
+                        ImageColor3 = Color3.fromRGB(178, 178, 178),
+                        Parent = dropdown_outline,
+                        AnchorPoint = Vector2.new(1, 0.5),
+                        Image = "rbxassetid://76667213487638",
+                        BackgroundTransparency = 1,
+                        Position = UDim2.new(1, -5, 0.5, 0),
+                        Size = UDim2.new(0, 7, 0, 4),
+                        BorderSizePixel = 0,
+                    })
+
+                    local dropdown_holder = library:create("Frame", {
+                        Parent = window_obj.screen,
+                        Size = UDim2.new(0, 120, 0, 0),
+                        Visible = false,
+                        ZIndex = 150,
+                        BorderSizePixel = 0,
+                        AutomaticSize = Enum.AutomaticSize.Y,
+                        BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+                    })
+
+                    local pop_shading = library:create("Frame", {
+                        Parent = dropdown_holder,
+                        Size = UDim2.new(1, -2, 0, -2),
+                        Position = UDim2.new(0, 1, 0, 1),
+                        BorderSizePixel = 0,
+                        AutomaticSize = Enum.AutomaticSize.Y,
+                        BackgroundColor3 = Color3.fromRGB(255, 255, 255),
+                        ZIndex = 151,
+                    })
+
+                    library:create("UIGradient", {
+                        Rotation = 90,
+                        Parent = pop_shading,
+                        Color = ColorSequence.new({
+                            ColorSequenceKeypoint.new(0, Color3.fromRGB(33, 33, 33)),
+                            ColorSequenceKeypoint.new(1, Color3.fromRGB(8, 8, 8))
+                        })
+                    })
+
+                    library:create("UIListLayout", {
+                        Parent = pop_shading,
+                        Padding = UDim.new(0, 2),
+                        SortOrder = Enum.SortOrder.LayoutOrder,
+                    })
+                    library:create("UIPadding", {
+                        PaddingBottom = UDim.new(0, 4),
+                        PaddingTop = UDim.new(0, 4),
+                        Parent = pop_shading
+                    })
+
+                    local function set_visible(bool)
+                        open = bool
+                        dropdown_holder.Visible = bool
+                        arrow.Rotation = bool and 180 or 0
+                        if bool then
+                            dropdown_holder.Size = UDim2.new(0, dropdown_outline.AbsoluteSize.X, 0, 0)
+                            dropdown_holder.Position = UDim2.new(0, dropdown_outline.AbsolutePosition.X, 0, dropdown_outline.AbsolutePosition.Y + dropdown_outline.AbsoluteSize.Y + 2)
+                        end
+                    end
+
+                    local function set(value)
+                        local selected = {}
+                        local isTable = type(value) == "table"
+
+                        for _, option_btn in ipairs(option_instances) do
+                            if option_btn.Text == value or (isTable and table.find(value, option_btn.Text)) then
+                                table.insert(selected, option_btn.Text)
+                                multi_items = selected
+                                option_btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+                            else
+                                option_btn.TextColor3 = Color3.fromRGB(150, 150, 150)
+                            end
+                        end
+
+                        inner_text.Text = if isTable then table.concat(selected, ", ") else (selected[1] or tostring(value))
+                        library.flags[flag] = if isTable then selected else selected[1]
+                        callback(library.flags[flag])
+                    end
+
+                    local function refresh_options(list)
+                        for _, opt in ipairs(option_instances) do opt:Destroy() end
+                        option_instances = {}
+
+                        for _, item_name in ipairs(list) do
+                            local opt_btn = library:create("TextButton", {
+                                FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.SemiBold, Enum.FontStyle.Normal),
+                                TextColor3 = Color3.fromRGB(178, 178, 178),
+                                Text = tostring(item_name),
+                                Parent = pop_shading,
+                                Size = UDim2.new(1, 0, 0, 15),
+                                BackgroundTransparency = 1,
+                                TextXAlignment = Enum.TextXAlignment.Center,
+                                BorderSizePixel = 0,
+                                TextSize = 10,
+                                ZIndex = 152,
+                            })
+                            table.insert(option_instances, opt_btn)
+
+                            opt_btn.MouseButton1Click:Connect(function()
+                                if multi then
+                                    local idx = table.find(multi_items, opt_btn.Text)
+                                    if idx then
+                                        table.remove(multi_items, idx)
+                                    else
+                                        table.insert(multi_items, opt_btn.Text)
+                                    end
+                                    set(multi_items)
+                                else
+                                    set_visible(false)
+                                    set(opt_btn.Text)
+                                end
+                            end)
+                        end
+                    end
+
+                    dropdown_outline.MouseButton1Click:Connect(function()
+                        set_visible(not open)
+                    end)
+
+                    library:connection(UserInputService.InputEnded, function(input)
+                        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+                            if open and not (library:mouse_in_frame(dropdown_holder) or library:mouse_in_frame(dropdown_outline)) then
+                                set_visible(false)
+                            end
                         end
                     end)
 
+                    refresh_options(items_list)
                     set(default)
                     library.config_flags[flag] = set
-                    return { set = set }
+
+                    return { set = set, refresh = refresh_options }
                 end
+                section_obj.dropdown = section_obj.Dropdown
 
-                -- DROPDOWN
-                function section_obj:dropdown(opts)
-                    opts = opts or {}
-                    local text = opts.name or "Dropdown"
-                    local flag = opts.flag or text
-                    local items = opts.items or {}
-                    local default = opts.default or items[1] or ""
-                    local callback = opts.callback or function() end
+                -- =====================================================================
+                -- BUTTON
+                -- =====================================================================
+                function section_obj:Button(options)
+                    options = options or {}
+                    local text = options.name or options.Name or "Button"
+                    local callback = options.callback or options.Callback or function() end
 
-                    local holder = Instance.new("Frame")
-                    holder.Size = UDim2.new(1, 0, 0, 30)
-                    holder.BackgroundTransparency = 1
-                    holder.Parent = scroll
+                    local btn = library:create("TextButton", {
+                        Parent = scroll,
+                        Name = text,
+                        AutoButtonColor = false,
+                        BackgroundTransparency = 1,
+                        Size = UDim2.new(1, 0, 0, 20),
+                        BorderSizePixel = 0,
+                        Text = "",
+                    })
 
-                    local lbl = Instance.new("TextLabel")
-                    lbl.Size = UDim2.new(1, 0, 0, 11)
-                    lbl.BackgroundTransparency = 1
-                    lbl.Font = Enum.Font.SourceSans
-                    lbl.Text = text
-                    lbl.TextColor3 = library.theme.text
-                    lbl.TextSize = 10
-                    lbl.TextXAlignment = Enum.TextXAlignment.Left
-                    lbl.Parent = holder
+                    local button_outline = library:create("Frame", {
+                        Parent = btn,
+                        BorderColor3 = Color3.fromRGB(0, 0, 0),
+                        Size = UDim2.new(1, 0, 1, 0),
+                        BorderSizePixel = 0,
+                        BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+                    })
 
-                    local btn = Instance.new("TextButton")
-                    btn.Size = UDim2.new(1, 0, 0, 16)
-                    btn.Position = UDim2.new(0, 0, 0, 13)
-                    btn.BackgroundColor3 = library.theme.element_bg
-                    btn.BorderSizePixel = 0
-                    btn.Font = Enum.Font.SourceSans
-                    btn.Text = "  " .. tostring(default)
-                    btn.TextColor3 = library.theme.text
-                    btn.TextSize = 10
-                    btn.TextXAlignment = Enum.TextXAlignment.Left
-                    btn.AutoButtonColor = false
-                    btn.Parent = holder
-                    make_corner(btn, 2)
-                    make_stroke(btn, library.theme.border_dark, 1)
+                    local button_shading = library:create("Frame", {
+                        Parent = button_outline,
+                        Position = UDim2.new(0, 1, 0, 1),
+                        BorderColor3 = Color3.fromRGB(0, 0, 0),
+                        Size = UDim2.new(1, -2, 1, -2),
+                        BorderSizePixel = 0,
+                        BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+                    })
 
-                    local arrow = Instance.new("TextLabel")
-                    arrow.Size = UDim2.new(0, 14, 1, 0)
-                    arrow.Position = UDim2.new(1, -14, 0, 0)
-                    arrow.BackgroundTransparency = 1
-                    arrow.Font = Enum.Font.SourceSans
-                    arrow.Text = "v"
-                    arrow.TextColor3 = library.theme.text_dark
-                    arrow.TextSize = 9
-                    arrow.Parent = btn
+                    library:create("UIGradient", {
+                        Rotation = 90,
+                        Parent = button_shading,
+                        Color = ColorSequence.new({
+                            ColorSequenceKeypoint.new(0, Color3.fromRGB(33, 33, 33)),
+                            ColorSequenceKeypoint.new(1, Color3.fromRGB(8, 8, 8))
+                        })
+                    })
 
-                    local popup = Instance.new("Frame")
-                    popup.Size = UDim2.new(1, 0, 0, #items * 16)
-                    popup.Position = UDim2.new(0, 0, 1, 2)
-                    popup.BackgroundColor3 = library.theme.main_bg
-                    popup.BorderSizePixel = 0
-                    popup.Visible = false
-                    popup.ZIndex = 50
-                    popup.Parent = btn
-                    make_corner(popup, 2)
-                    make_stroke(popup, library.theme.border, 1)
-
-                    local playout = Instance.new("UIListLayout")
-                    playout.SortOrder = Enum.SortOrder.LayoutOrder
-                    playout.Parent = popup
-
-                    local function set(val)
-                        btn.Text = "  " .. tostring(val)
-                        library.flags[flag] = val
-                        callback(val)
-                    end
-
-                    for _, item in ipairs(items) do
-                        local opt_btn = Instance.new("TextButton")
-                        opt_btn.Size = UDim2.new(1, 0, 0, 16)
-                        opt_btn.BackgroundTransparency = 1
-                        opt_btn.Font = Enum.Font.SourceSans
-                        opt_btn.Text = "  " .. tostring(item)
-                        opt_btn.TextColor3 = library.theme.text
-                        opt_btn.TextSize = 10
-                        opt_btn.TextXAlignment = Enum.TextXAlignment.Left
-                        opt_btn.ZIndex = 51
-                        opt_btn.Parent = popup
-
-                        opt_btn.MouseButton1Click:Connect(function()
-                            set(item)
-                            popup.Visible = false
-                            arrow.Text = "v"
-                        end)
-                    end
+                    local button_text = library:create("TextLabel", {
+                        FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.SemiBold, Enum.FontStyle.Normal),
+                        TextColor3 = Color3.fromRGB(178, 178, 178),
+                        Text = text,
+                        Parent = button_shading,
+                        BackgroundTransparency = 1,
+                        Size = UDim2.new(1, 0, 1, 0),
+                        BorderSizePixel = 0,
+                        TextSize = 11,
+                    })
 
                     btn.MouseButton1Click:Connect(function()
-                        popup.Visible = not popup.Visible
-                        arrow.Text = popup.Visible and "^" or "v"
+                        callback()
+                        button_text.TextColor3 = Color3.fromRGB(255, 255, 255)
+                        library:tween(button_text, {TextColor3 = Color3.fromRGB(178, 178, 178)})
                     end)
 
-                    set(default)
-                    library.config_flags[flag] = set
-                    return { set = set }
+                    return btn
                 end
+                section_obj.button = section_obj.Button
 
+                -- =====================================================================
                 -- KEYBIND
-                function section_obj:keybind(opts)
-                    opts = opts or {}
-                    local text = opts.name or "Keybind"
-                    local flag = opts.flag or text
-                    local default_key = opts.key or Enum.KeyCode.E
-                    local callback = opts.callback or function() end
+                -- =====================================================================
+                function section_obj:Keybind(options)
+                    options = options or {}
+                    local text = options.name or options.Name or "Keybind"
+                    local flag = options.flag or options.Flag or text
+                    local default_key = options.key or options.Key or Enum.KeyCode.E
+                    local callback = options.callback or options.Callback or function() end
 
-                    local holder = Instance.new("Frame")
-                    holder.Size = UDim2.new(1, 0, 0, 14)
-                    holder.BackgroundTransparency = 1
-                    holder.Parent = scroll
+                    local holder = library:create("Frame", {
+                        Parent = scroll,
+                        Size = UDim2.new(1, 0, 0, 16),
+                        BackgroundTransparency = 1,
+                    })
 
-                    local lbl = Instance.new("TextLabel")
-                    lbl.Size = UDim2.new(1, -40, 1, 0)
-                    lbl.BackgroundTransparency = 1
-                    lbl.Font = Enum.Font.SourceSans
-                    lbl.Text = text
-                    lbl.TextColor3 = library.theme.text
-                    lbl.TextSize = 11
-                    lbl.TextXAlignment = Enum.TextXAlignment.Left
-                    lbl.Parent = holder
+                    library:create("TextLabel", {
+                        FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.SemiBold, Enum.FontStyle.Normal),
+                        TextColor3 = Color3.fromRGB(178, 178, 178),
+                        Text = text,
+                        Parent = holder,
+                        BackgroundTransparency = 1,
+                        Size = UDim2.new(1, -40, 1, 0),
+                        TextSize = 11,
+                        TextXAlignment = Enum.TextXAlignment.Left,
+                    })
 
-                    local btn = Instance.new("TextButton")
-                    btn.Size = UDim2.new(0, 36, 1, 0)
-                    btn.Position = UDim2.new(1, -36, 0, 0)
-                    btn.BackgroundColor3 = library.theme.element_bg
-                    btn.BorderSizePixel = 0
-                    btn.Font = Enum.Font.SourceSansBold
-                    btn.Text = "[" .. default_key.Name .. "]"
-                    btn.TextColor3 = library.theme.text_dark
-                    btn.TextSize = 10
-                    btn.AutoButtonColor = false
-                    btn.Parent = holder
+                    local btn = library:create("TextButton", {
+                        Parent = holder,
+                        Size = UDim2.new(0, 36, 1, 0),
+                        Position = UDim2.new(1, -36, 0, 0),
+                        BackgroundColor3 = library.theme.element_bg,
+                        BorderSizePixel = 0,
+                        Font = Enum.Font.SourceSansBold,
+                        Text = "[" .. default_key.Name .. "]",
+                        TextColor3 = Color3.fromRGB(178, 178, 178),
+                        TextSize = 10,
+                        AutoButtonColor = false,
+                    })
                     make_corner(btn, 2)
                     make_stroke(btn, library.theme.border_dark, 1)
 
@@ -881,38 +1189,44 @@ function library:window(cfg)
                         end
                     }
                 end
+                section_obj.keybind = section_obj.Keybind
 
+                -- =====================================================================
                 -- COLORPICKER
-                function section_obj:colorpicker(opts)
-                    opts = opts or {}
-                    local text = opts.name or "Color"
-                    local flag = opts.flag or text
-                    local default_col = opts.color or Color3.fromRGB(0, 215, 165)
-                    local callback = opts.callback or function() end
+                -- =====================================================================
+                function section_obj:Colorpicker(options)
+                    options = options or {}
+                    local text = options.name or options.Name or "Color"
+                    local flag = options.flag or options.Flag or text
+                    local default_col = options.color or options.Color or Color3.fromRGB(0, 215, 165)
+                    local callback = options.callback or options.Callback or function() end
 
-                    local holder = Instance.new("Frame")
-                    holder.Size = UDim2.new(1, 0, 0, 14)
-                    holder.BackgroundTransparency = 1
-                    holder.Parent = scroll
+                    local holder = library:create("Frame", {
+                        Parent = scroll,
+                        Size = UDim2.new(1, 0, 0, 16),
+                        BackgroundTransparency = 1,
+                    })
 
-                    local lbl = Instance.new("TextLabel")
-                    lbl.Size = UDim2.new(1, -24, 1, 0)
-                    lbl.BackgroundTransparency = 1
-                    lbl.Font = Enum.Font.SourceSans
-                    lbl.Text = text
-                    lbl.TextColor3 = library.theme.text
-                    lbl.TextSize = 11
-                    lbl.TextXAlignment = Enum.TextXAlignment.Left
-                    lbl.Parent = holder
+                    library:create("TextLabel", {
+                        FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.SemiBold, Enum.FontStyle.Normal),
+                        TextColor3 = Color3.fromRGB(178, 178, 178),
+                        Text = text,
+                        Parent = holder,
+                        BackgroundTransparency = 1,
+                        Size = UDim2.new(1, -24, 1, 0),
+                        TextSize = 11,
+                        TextXAlignment = Enum.TextXAlignment.Left,
+                    })
 
-                    local col_btn = Instance.new("TextButton")
-                    col_btn.Size = UDim2.new(0, 18, 0, 10)
-                    col_btn.Position = UDim2.new(1, -18, 0.5, -5)
-                    col_btn.BackgroundColor3 = default_col
-                    col_btn.BorderSizePixel = 0
-                    col_btn.Text = ""
-                    col_btn.AutoButtonColor = false
-                    col_btn.Parent = holder
+                    local col_btn = library:create("TextButton", {
+                        Parent = holder,
+                        Size = UDim2.new(0, 18, 0, 10),
+                        Position = UDim2.new(1, -18, 0.5, -5),
+                        BackgroundColor3 = default_col,
+                        BorderSizePixel = 0,
+                        Text = "",
+                        AutoButtonColor = false,
+                    })
                     make_corner(col_btn, 2)
                     make_stroke(col_btn, library.theme.border, 1)
 
@@ -928,6 +1242,7 @@ function library:window(cfg)
                         end
                     }
                 end
+                section_obj.colorpicker = section_obj.Colorpicker
 
                 return section_obj
             end
