@@ -804,6 +804,65 @@ function library:window(cfg)
             end
         end
 
+        -- Compat : ancienne API row(label, valeur, couleur)
+        function float_obj:row(lbl_text, val_text, val_col)
+            local row = library:create("Frame", {
+                Size = UDim2.new(1, 0, 0, 14),
+                BackgroundTransparency = 1,
+                Parent = container
+            })
+            library:create("TextLabel", {
+                Size = UDim2.new(0.55, 0, 1, 0),
+                BackgroundTransparency = 1,
+                Font = Enum.Font.SourceSansBold,
+                Text = tostring(lbl_text),
+                TextColor3 = library.theme.text_dim,
+                TextSize = 11,
+                TextXAlignment = Enum.TextXAlignment.Left,
+                Parent = row
+            })
+            local v = library:create("TextLabel", {
+                Size = UDim2.new(0.45, 0, 1, 0),
+                Position = UDim2.new(0.55, 0, 0, 0),
+                BackgroundTransparency = 1,
+                Font = Enum.Font.SourceSansBold,
+                Text = tostring(val_text),
+                TextColor3 = val_col or library.theme.text,
+                TextSize = 11,
+                TextXAlignment = Enum.TextXAlignment.Right,
+                Parent = row
+            })
+            return {
+                set = function(t, c)
+                    v.Text = tostring(t)
+                    if c then v.TextColor3 = c end
+                end,
+                frame = row
+            }
+        end
+
+        -- Compat : barre de progression
+        function float_obj:progress(percent, col)
+            local bg = library:create("Frame", {
+                Size = UDim2.new(1, 0, 0, 6),
+                BackgroundColor3 = library.theme.element_bg,
+                BorderSizePixel = 0,
+                Parent = container
+            })
+            local fill = library:create("Frame", {
+                Size = UDim2.new(math.clamp((percent or 0) / 100, 0, 1), 0, 1, 0),
+                BackgroundColor3 = col or library.theme.accent,
+                BorderSizePixel = 0,
+                Parent = bg
+            })
+            return {
+                set = function(p)
+                    fill.Size = UDim2.new(math.clamp(p / 100, 0, 1), 0, 1, 0)
+                end,
+                frame = bg
+            }
+        end
+
         return float_obj
     end
 
