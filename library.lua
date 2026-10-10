@@ -40,6 +40,9 @@ local Toggles  = {}
 local Options  = {}
 local Tooltips = {}
 
+local ThemeManager = {}
+local SaveManager  = {}
+
 local library = {
     flags = {},
     config_flags = {},
@@ -902,7 +905,10 @@ function library:window(cfg)
         content = content_holder,
         background_image = bg_img,
         tabs = {},
-        current_tab = nil
+        Tabs = {},
+        current_tab = nil,
+        SettingsTab = nil,
+        DashboardTab = nil,
     }
     library.Window = window_obj
 
@@ -1258,6 +1264,16 @@ function library:window(cfg)
         local tab_name = tcfg.Title or tcfg.name or tcfg.Name or "Tab"
         local tab_icon = tcfg.Icon or tcfg.icon or tab_name:sub(1, 1)
 
+        if (tab_name == "Settings" or tab_name == "settings") and window_obj.SettingsTab then
+            return window_obj.SettingsTab
+        end
+        if (tab_name == "Dashboard" or tab_name == "dashboard") and window_obj.DashboardTab then
+            return window_obj.DashboardTab
+        end
+
+        local is_settings = (tab_name == "Settings" or tab_name == "settings")
+        local is_dashboard = (tab_name == "Dashboard" or tab_name == "dashboard")
+        local tab_order = is_dashboard and 1 or (is_settings and 9999 or (10 + #window_obj.tabs))
         local tab_btn = library:create("TextButton", {
             Name = "Tab_" .. tab_name,
             Size = UDim2.new(0, 34, 0, 32),
@@ -1265,6 +1281,7 @@ function library:window(cfg)
             BorderSizePixel = 0,
             Text = "",
             AutoButtonColor = false,
+            LayoutOrder = tab_order,
             Parent = self.sidebar
         })
         make_corner(tab_btn, 4)
@@ -2710,12 +2727,590 @@ function library:window(cfg)
 
         table.insert(window_obj.tabs, tab_obj)
         table.insert(library.Tabs, tab_obj)
+        window_obj.Tabs[tab_name] = tab_obj
+
         if #window_obj.tabs == 1 then
+            tab_obj:select()
+        elseif #window_obj.tabs == 2 and window_obj.SettingsTab and window_obj.tabs[1] == window_obj.SettingsTab then
             tab_obj:select()
         end
 
         return tab_obj
     end
+
+    -- ==============================================================================
+    -- AUTO-DASHBOARD BUILDER
+    -- ==============================================================================
+    function window_obj:_build_dashboard(dcfg)
+        dcfg = dcfg or {}
+        local dash_tab = self:tab({
+            Title = "Dashboard",
+            name = "Dashboard",
+            icon = "rbxassetid://10723424505"
+        })
+        self.DashboardTab = dash_tab
+        self.Tabs["Dashboard"] = dash_tab
+
+        -- Ensure subtab bar is hidden
+        if dash_tab.subtab_bar then
+            dash_tab.subtab_bar.Visible = false
+        end
+        if dash_tab.sub_content then
+            dash_tab.sub_content.Visible = false
+        end
+
+        local container = library:create("ScrollingFrame", {
+            Name = "DashboardContainer",
+            Size = UDim2.new(1, 0, 1, 0),
+            Position = UDim2.new(0, 0, 0, 0),
+            BackgroundTransparency = 1,
+            BorderSizePixel = 0,
+            ScrollBarThickness = 3,
+            ScrollBarImageColor3 = library.theme.accent,
+            AutomaticCanvasSize = Enum.AutomaticSize.Y,
+            CanvasSize = UDim2.new(0, 0, 0, 0),
+            Parent = dash_tab.page
+        })
+
+        library:create("UIPadding", {
+            PaddingLeft = UDim.new(0, 6),
+            PaddingRight = UDim.new(0, 8),
+            PaddingTop = UDim.new(0, 6),
+            PaddingBottom = UDim.new(0, 8),
+            Parent = container
+        })
+
+        local list_layout = library:create("UIListLayout", {
+            SortOrder = Enum.SortOrder.LayoutOrder,
+            Padding = UDim.new(0, 8),
+            Parent = container
+        })
+
+        -- -------------------------------------------------------------
+        -- 1. TOP WELCOME BANNER
+        -- -------------------------------------------------------------
+        local banner = library:create("Frame", {
+            Name = "WelcomeBanner",
+            Size = UDim2.new(1, 0, 0, 68),
+            BackgroundColor3 = library.theme.panel_bg,
+            BorderSizePixel = 0,
+            LayoutOrder = 1,
+            Parent = container
+        })
+        make_corner(banner, 6)
+        make_stroke(banner, library.theme.border_dark, 1)
+
+        -- Avatar Image
+        local avatar = library:create("ImageLabel", {
+            Name = "Avatar",
+            Size = UDim2.new(0, 52, 0, 52),
+            Position = UDim2.new(0, 8, 0.5, -26),
+            BackgroundColor3 = library.theme.main_bg,
+            BorderSizePixel = 0,
+            ScaleType = Enum.ScaleType.Fit,
+            Parent = banner
+        })
+        make_corner(avatar, 8)
+        make_stroke(avatar, library.theme.border_dark, 1)
+
+        task.spawn(function()
+            local success, url = pcall(function()
+                return Players:GetUserThumbnailAsync(LocalPlayer.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size100x100)
+            end)
+            if success and url then
+                avatar.Image = url
+            end
+        end)
+
+        -- Welcome Texts
+        local text_holder = library:create("Frame", {
+            Name = "Texts",
+            Size = UDim2.new(1, -210, 1, 0),
+            Position = UDim2.new(0, 68, 0, 0),
+            BackgroundTransparency = 1,
+            Parent = banner
+        })
+
+        local welcome_lbl = library:create("TextLabel", {
+            Name = "Title",
+            Size = UDim2.new(1, 0, 0, 24),
+            Position = UDim2.new(0, 0, 0, 14),
+            BackgroundTransparency = 1,
+            FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.Bold, Enum.FontStyle.Normal),
+            Text = "Welcome, " .. (LocalPlayer.DisplayName or LocalPlayer.Name),
+            TextColor3 = Color3.fromRGB(255, 255, 255),
+            TextSize = 16,
+            TextXAlignment = Enum.TextXAlignment.Left,
+            Parent = text_holder
+        })
+
+        local sub_lbl = library:create("TextLabel", {
+            Name = "Subtitle",
+            Size = UDim2.new(1, 0, 0, 18),
+            Position = UDim2.new(0, 0, 0, 36),
+            BackgroundTransparency = 1,
+            FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.SemiBold, Enum.FontStyle.Normal),
+            Text = "How's Your Day Going? | " .. LocalPlayer.Name,
+            TextColor3 = Color3.fromRGB(150, 150, 155),
+            TextSize = 12,
+            TextXAlignment = Enum.TextXAlignment.Left,
+            Parent = text_holder
+        })
+
+        -- Clock & Date on right
+        local clock_holder = library:create("Frame", {
+            Name = "ClockDate",
+            Size = UDim2.new(0, 130, 1, 0),
+            Position = UDim2.new(1, -138, 0, 0),
+            BackgroundTransparency = 1,
+            Parent = banner
+        })
+
+        local clock_lbl = library:create("TextLabel", {
+            Name = "Clock",
+            Size = UDim2.new(1, 0, 0, 22),
+            Position = UDim2.new(0, 0, 0, 14),
+            BackgroundTransparency = 1,
+            FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.Bold, Enum.FontStyle.Normal),
+            Text = os.date("%H : %M : %S"),
+            TextColor3 = Color3.fromRGB(240, 240, 245),
+            TextSize = 15,
+            TextXAlignment = Enum.TextXAlignment.Right,
+            Parent = clock_holder
+        })
+
+        local date_lbl = library:create("TextLabel", {
+            Name = "Date",
+            Size = UDim2.new(1, 0, 0, 18),
+            Position = UDim2.new(0, 0, 0, 36),
+            BackgroundTransparency = 1,
+            FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal),
+            Text = os.date("%d / %m / %y"),
+            TextColor3 = Color3.fromRGB(160, 160, 165),
+            TextSize = 12,
+            TextXAlignment = Enum.TextXAlignment.Right,
+            Parent = clock_holder
+        })
+
+        task.spawn(function()
+            while task.wait(1) do
+                if not banner.Parent then break end
+                clock_lbl.Text = os.date("%H : %M : %S")
+                date_lbl.Text = os.date("%d / %m / %y")
+            end
+        end)
+
+        -- -------------------------------------------------------------
+        -- 2. 3-COLUMNS GRID
+        -- -------------------------------------------------------------
+        local cols_frame = library:create("Frame", {
+            Name = "ColumnsGrid",
+            Size = UDim2.new(1, 0, 0, 280),
+            AutomaticSize = Enum.AutomaticSize.Y,
+            BackgroundTransparency = 1,
+            LayoutOrder = 2,
+            Parent = container
+        })
+
+        local col1 = library:create("Frame", {
+            Name = "Col1",
+            Size = UDim2.new(0.325, 0, 0, 0),
+            AutomaticSize = Enum.AutomaticSize.Y,
+            BackgroundTransparency = 1,
+            Position = UDim2.new(0, 0, 0, 0),
+            Parent = cols_frame
+        })
+        library:create("UIListLayout", { SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0, 8), Parent = col1 })
+
+        local col2 = library:create("Frame", {
+            Name = "Col2",
+            Size = UDim2.new(0.325, 0, 0, 0),
+            AutomaticSize = Enum.AutomaticSize.Y,
+            BackgroundTransparency = 1,
+            Position = UDim2.new(0.337, 0, 0, 0),
+            Parent = cols_frame
+        })
+        library:create("UIListLayout", { SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0, 8), Parent = col2 })
+
+        local col3 = library:create("Frame", {
+            Name = "Col3",
+            Size = UDim2.new(0.325, 0, 0, 0),
+            AutomaticSize = Enum.AutomaticSize.Y,
+            BackgroundTransparency = 1,
+            Position = UDim2.new(0.675, 0, 0, 0),
+            Parent = cols_frame
+        })
+        library:create("UIListLayout", { SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0, 8), Parent = col3 })
+
+        local function create_card(parent, title, icon_id, height, layout_order)
+            local card = library:create("Frame", {
+                Name = "Card_" .. title,
+                Size = UDim2.new(1, 0, 0, height or 120),
+                BackgroundColor3 = library.theme.panel_bg,
+                BorderSizePixel = 0,
+                LayoutOrder = layout_order or 1,
+                Parent = parent
+            })
+            make_corner(card, 6)
+            make_stroke(card, library.theme.border_dark, 1)
+
+            local card_head = library:create("Frame", {
+                Name = "Header",
+                Size = UDim2.new(1, -16, 0, 24),
+                Position = UDim2.new(0, 8, 0, 8),
+                BackgroundTransparency = 1,
+                Parent = card
+            })
+
+            local icon_img = library:create("ImageLabel", {
+                Name = "Icon",
+                Size = UDim2.new(0, 16, 0, 16),
+                Position = UDim2.new(0, 0, 0.5, -8),
+                BackgroundTransparency = 1,
+                Image = icon_id or "rbxassetid://10723424505",
+                ImageColor3 = Color3.fromRGB(255, 255, 255),
+                Parent = card_head
+            })
+
+            local title_lbl = library:create("TextLabel", {
+                Name = "Title",
+                Size = UDim2.new(1, -24, 1, 0),
+                Position = UDim2.new(0, 22, 0, 0),
+                BackgroundTransparency = 1,
+                FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.Bold, Enum.FontStyle.Normal),
+                Text = title,
+                TextColor3 = Color3.fromRGB(240, 240, 245),
+                TextSize = 13,
+                TextXAlignment = Enum.TextXAlignment.Left,
+                Parent = card_head
+            })
+
+            local body = library:create("Frame", {
+                Name = "Body",
+                Size = UDim2.new(1, -16, 1, -38),
+                Position = UDim2.new(0, 8, 0, 32),
+                BackgroundTransparency = 1,
+                Parent = card
+            })
+
+            return card, body
+        end
+
+        -- ====================
+        -- COL 1: DISCORD + SERVER
+        -- ====================
+        -- Card: Discord
+        local discord_card, discord_body = create_card(col1, "Discord", "rbxassetid://10709798433", 84, 1)
+        local discord_btn = library:create("TextButton", {
+            Name = "JoinBtn",
+            Size = UDim2.new(1, 0, 1, 0),
+            BackgroundTransparency = 1,
+            Text = "",
+            Parent = discord_body
+        })
+        library:create("TextLabel", {
+            Name = "Desc",
+            Size = UDim2.new(1, 0, 1, 0),
+            BackgroundTransparency = 1,
+            FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal),
+            Text = "Tap to join the discord of\nyour script.",
+            TextColor3 = Color3.fromRGB(155, 155, 160),
+            TextSize = 11,
+            TextXAlignment = Enum.TextXAlignment.Left,
+            TextYAlignment = Enum.TextYAlignment.Top,
+            Parent = discord_body
+        })
+        discord_btn.MouseButton1Click:Connect(function()
+            local link = dcfg.Discord or "https://discord.gg/ezwin"
+            if setclipboard then
+                setclipboard(link)
+                library:Notify({ Title = "Discord", Text = "Link copied to clipboard!", Duration = 3 })
+            else
+                library:Notify({ Title = "Discord", Text = link, Duration = 4 })
+            end
+        end)
+
+        -- Card: Server
+        local server_card, server_body = create_card(col1, "Server", "rbxassetid://10709769598", 196, 2)
+        local game_name = "Universal"
+        pcall(function()
+            local info = MarketplaceService:GetProductInfo(game.PlaceId)
+            if info and info.Name then game_name = info.Name end
+        end)
+
+        library:create("TextLabel", {
+            Name = "GameTitle",
+            Size = UDim2.new(1, 0, 0, 14),
+            Position = UDim2.new(0, 0, 0, 0),
+            BackgroundTransparency = 1,
+            FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal),
+            Text = "Currently Playing " .. (game_name:sub(1, 18) .. (game_name:len() > 18 and "..." or "")),
+            TextColor3 = Color3.fromRGB(140, 140, 145),
+            TextSize = 10,
+            TextXAlignment = Enum.TextXAlignment.Left,
+            Parent = server_body
+        })
+
+        local s_stats_grid = library:create("Frame", {
+            Name = "StatsGrid",
+            Size = UDim2.new(1, 0, 1, -20),
+            Position = UDim2.new(0, 0, 0, 18),
+            BackgroundTransparency = 1,
+            Parent = server_body
+        })
+
+        local function make_stat_box(parent, title, val, pos, size)
+            local box = library:create("Frame", {
+                Size = size,
+                Position = pos,
+                BackgroundTransparency = 1,
+                Parent = parent
+            })
+            library:create("TextLabel", {
+                Size = UDim2.new(1, 0, 0, 13),
+                BackgroundTransparency = 1,
+                FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.Bold, Enum.FontStyle.Normal),
+                Text = title,
+                TextColor3 = Color3.fromRGB(220, 220, 225),
+                TextSize = 11,
+                TextXAlignment = Enum.TextXAlignment.Left,
+                Parent = box
+            })
+            local v_lbl = library:create("TextLabel", {
+                Size = UDim2.new(1, 0, 1, -13),
+                Position = UDim2.new(0, 0, 0, 13),
+                BackgroundTransparency = 1,
+                FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal),
+                Text = val,
+                TextColor3 = Color3.fromRGB(145, 145, 150),
+                TextSize = 10,
+                TextXAlignment = Enum.TextXAlignment.Left,
+                TextYAlignment = Enum.TextYAlignment.Top,
+                Parent = box
+            })
+            return v_lbl
+        end
+
+        local p_cnt = tostring(#Players:GetPlayers()) .. " Players In\nThis Server"
+        local p_cap = tostring(Players.MaxPlayers) .. " Players In\ncan join."
+        local s_players_lbl = make_stat_box(s_stats_grid, "Players", p_cnt, UDim2.new(0, 0, 0, 0), UDim2.new(0.5, -2, 0.33, 0))
+        local s_cap_lbl = make_stat_box(s_stats_grid, "Capacity", p_cap, UDim2.new(0.5, 2, 0, 0), UDim2.new(0.5, -2, 0.33, 0))
+
+        local s_latency_lbl = make_stat_box(s_stats_grid, "Latency", "60 FPS\n20ms", UDim2.new(0, 0, 0.35, 0), UDim2.new(0.5, -2, 0.33, 0))
+        local s_join_box = library:create("Frame", {
+            Size = UDim2.new(0.5, -2, 0.33, 0),
+            Position = UDim2.new(0.5, 2, 0.35, 0),
+            BackgroundTransparency = 1,
+            Parent = s_stats_grid
+        })
+        library:create("TextLabel", {
+            Size = UDim2.new(1, 0, 0, 13),
+            BackgroundTransparency = 1,
+            FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.Bold, Enum.FontStyle.Normal),
+            Text = "Join Script",
+            TextColor3 = Color3.fromRGB(220, 220, 225),
+            TextSize = 11,
+            TextXAlignment = Enum.TextXAlignment.Left,
+            Parent = s_join_box
+        })
+        local s_rejoin_btn = library:create("TextButton", {
+            Size = UDim2.new(1, 0, 0, 18),
+            Position = UDim2.new(0, 0, 0, 14),
+            BackgroundColor3 = library.theme.main_bg,
+            BorderSizePixel = 0,
+            FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.SemiBold, Enum.FontStyle.Normal),
+            Text = "Copy / Rejoin",
+            TextColor3 = library.theme.accent,
+            TextSize = 10,
+            AutoButtonColor = false,
+            Parent = s_join_box
+        })
+        make_corner(s_rejoin_btn, 3)
+        make_stroke(s_rejoin_btn, library.theme.border_dark, 1)
+        s_rejoin_btn.MouseButton1Click:Connect(function()
+            local scr = string.format("game:GetService('TeleportService'):TeleportToPlaceInstance(%d, '%s', game:GetService('Players').LocalPlayer)", game.PlaceId, game.JobId)
+            if setclipboard then setclipboard(scr) end
+            library:Notify({ Title = "Server", Text = "Teleport script copied to clipboard!", Duration = 3 })
+        end)
+
+        local start_tick = tick()
+        local s_time_lbl = make_stat_box(s_stats_grid, "Playtime", "0m", UDim2.new(0, 0, 0.7, 0), UDim2.new(0.5, -2, 0.3, 0))
+        local s_region_lbl = make_stat_box(s_stats_grid, "Region", "Auto", UDim2.new(0.5, 2, 0.7, 0), UDim2.new(0.5, -2, 0.3, 0))
+
+        -- Live FPS, Ping, Playtime
+        task.spawn(function()
+            local frame_count = 0
+            local last_fps_tick = tick()
+            local current_fps = 60
+            RunService.RenderStepped:Connect(function()
+                frame_count = frame_count + 1
+                if tick() - last_fps_tick >= 1 then
+                    current_fps = math.floor(frame_count / (tick() - last_fps_tick))
+                    frame_count = 0
+                    last_fps_tick = tick()
+                end
+            end)
+
+            while task.wait(1) do
+                if not server_card.Parent then break end
+                local ping_str = "20ms"
+                pcall(function()
+                    local stats = game:GetService("Stats")
+                    local ping = math.floor(stats.Network.ServerStatsItem["Data Ping"]:GetValue())
+                    ping_str = tostring(ping) .. "ms"
+                end)
+                s_latency_lbl.Text = string.format("%d FPS\n%s", current_fps, ping_str)
+
+                local minutes = math.floor((tick() - start_tick) / 60)
+                s_time_lbl.Text = tostring(minutes) .. "m"
+
+                s_players_lbl.Text = tostring(#Players:GetPlayers()) .. " Players In\nThis Server"
+            end
+        end)
+
+        -- ====================
+        -- COL 2: CHANGELOG + EXECUTOR
+        -- ====================
+        -- Card: Changelog
+        local cl_card, cl_body = create_card(col2, "Changelog", "rbxassetid://10709778785", 196, 1)
+        local cl_scroll = library:create("ScrollingFrame", {
+            Name = "ChangelogScroll",
+            Size = UDim2.new(1, 0, 1, 0),
+            BackgroundTransparency = 1,
+            BorderSizePixel = 0,
+            ScrollBarThickness = 2,
+            ScrollBarImageColor3 = library.theme.accent,
+            AutomaticCanvasSize = Enum.AutomaticSize.Y,
+            CanvasSize = UDim2.new(0, 0, 0, 0),
+            Parent = cl_body
+        })
+        library:create("UIListLayout", { SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0, 5), Parent = cl_scroll })
+
+        local logs = dcfg.Changelogs or {
+            "+ Dashboard Tab Enabled",
+            "+ ThemeManager Integrated (18 Themes)",
+            "+ SaveManager Config System",
+            "+ Full Obsidian & Gamesense API",
+            "+ Live Server & Friends Monitor",
+            "+ Optimized UI & Memory"
+        }
+        for idx, log_item in ipairs(logs) do
+            library:create("TextLabel", {
+                Name = "Log_" .. tostring(idx),
+                Size = UDim2.new(1, -6, 0, 16),
+                BackgroundTransparency = 1,
+                FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal),
+                Text = tostring(log_item),
+                TextColor3 = Color3.fromRGB(160, 160, 165),
+                TextSize = 11,
+                TextXAlignment = Enum.TextXAlignment.Left,
+                LayoutOrder = idx,
+                Parent = cl_scroll
+            })
+        end
+
+        -- Card: Executor
+        local exec_name = "Potassium"
+        pcall(function()
+            if identifyexecutor then
+                exec_name = tostring(identifyexecutor())
+            end
+        end)
+        local exec_card, exec_body = create_card(col2, exec_name, "rbxassetid://10709769841", 84, 2)
+        library:create("TextLabel", {
+            Name = "ExecDesc",
+            Size = UDim2.new(1, 0, 1, 0),
+            BackgroundTransparency = 1,
+            FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal),
+            Text = dcfg.SupportedExecutors or "Your Executor Seems To Be\nSupported By This Script.",
+            TextColor3 = Color3.fromRGB(155, 155, 160),
+            TextSize = 11,
+            TextXAlignment = Enum.TextXAlignment.Left,
+            TextYAlignment = Enum.TextYAlignment.Top,
+            Parent = exec_body
+        })
+
+        -- ====================
+        -- COL 3: ACCOUNT + FRIENDS
+        -- ====================
+        -- Card: Account
+        local acc_card, acc_body = create_card(col3, "Account", "rbxassetid://10709794353", 84, 1)
+        library:create("TextLabel", {
+            Name = "AccDesc",
+            Size = UDim2.new(1, 0, 1, 0),
+            BackgroundTransparency = 1,
+            FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal),
+            Text = dcfg.AccountTier or "Coming Soon.",
+            TextColor3 = Color3.fromRGB(155, 155, 160),
+            TextSize = 11,
+            TextXAlignment = Enum.TextXAlignment.Left,
+            TextYAlignment = Enum.TextYAlignment.Top,
+            Parent = acc_body
+        })
+
+        -- Card: Friends
+        local friends_card, friends_body = create_card(col3, "Friends", "rbxassetid://10709797378", 196, 2)
+
+        local friends_inner = library:create("Frame", {
+            Name = "FriendsInner",
+            Size = UDim2.new(1, 0, 1, 0),
+            BackgroundColor3 = library.theme.main_bg,
+            BorderSizePixel = 0,
+            Parent = friends_body
+        })
+        make_corner(friends_inner, 5)
+        make_stroke(friends_inner, library.theme.border_dark, 1)
+
+        local f_in_server = make_stat_box(friends_inner, "In Server", "0 friends", UDim2.new(0, 8, 0, 12), UDim2.new(0.5, -12, 0.45, 0))
+        local f_offline = make_stat_box(friends_inner, "Offline", "0 friends", UDim2.new(0.5, 4, 0, 12), UDim2.new(0.5, -12, 0.45, 0))
+        local f_online = make_stat_box(friends_inner, "Online", "0 friends", UDim2.new(0, 8, 0.5, 4), UDim2.new(0.5, -12, 0.45, 0))
+        local f_total = make_stat_box(friends_inner, "Total", "0 friends", UDim2.new(0.5, 4, 0.5, 4), UDim2.new(0.5, -12, 0.45, 0))
+
+        task.spawn(function()
+            local function update_friends()
+                local in_server_count = 0
+                for _, p in ipairs(Players:GetPlayers()) do
+                    if p ~= LocalPlayer then
+                        local is_friend = false
+                        pcall(function()
+                            is_friend = LocalPlayer:IsFriendsWith(p.UserId)
+                        end)
+                        if is_friend then in_server_count = in_server_count + 1 end
+                    end
+                end
+                f_in_server.Text = tostring(in_server_count) .. " friends"
+
+                local total_friends = 0
+                local online_friends = 0
+                pcall(function()
+                    local pages = Players:GetFriendsAsync(LocalPlayer.UserId)
+                    while true do
+                        local items = pages:GetCurrentPage()
+                        total_friends = total_friends + #items
+                        for _, item in ipairs(items) do
+                            if item.IsOnline then online_friends = online_friends + 1 end
+                        end
+                        if pages.IsFinished then break end
+                        pages:AdvanceToNextPageAsync()
+                    end
+                end)
+
+                f_total.Text = tostring(total_friends) .. " friends"
+                f_online.Text = tostring(online_friends) .. " friends"
+                f_offline.Text = tostring(math.max(0, total_friends - online_friends)) .. " friends"
+            end
+
+            update_friends()
+            while task.wait(30) do
+                if not friends_card.Parent then break end
+                update_friends()
+            end
+        end)
+
+        return dash_tab
+    end
+    window_obj.AddDashboard = window_obj._build_dashboard
+    window_obj.Dashboard = window_obj._build_dashboard
 
     -- Menu toggle keybind connection
     library:connection(UserInputService.InputBegan, function(input, gpe)
@@ -2723,6 +3318,53 @@ function library:window(cfg)
             library:Toggle()
         end
     end)
+
+
+    -- Auto-create Dashboard Tab
+    if cfg.AutoDashboard ~= false then
+        window_obj:_build_dashboard(cfg.Dashboard)
+    end
+
+    -- Auto-create Settings Tab with ThemeManager & SaveManager
+    if cfg.AutoSettings ~= false then
+        local settings_tab = window_obj:tab({
+            Title = "Settings",
+            name = "Settings",
+            icon = "settings"
+        })
+        window_obj.SettingsTab = settings_tab
+
+        -- Menu hotkey groupbox (Left)
+        local menu_box = settings_tab:AddLeftGroupbox("Menu")
+        menu_box:AddLabel("Toggle Menu", "Hotkey"):AddKeyPicker("MenuKeybind", {
+            Default = "RightControl",
+            NoUI = true,
+            Mode = "Toggle",
+            Text = "Menu Keybind",
+        })
+        if Options.MenuKeybind then
+            library.ToggleKeybind = Enum.KeyCode[Options.MenuKeybind.Value] or Enum.KeyCode.RightControl
+            Options.MenuKeybind:OnChanged(function(v)
+                if typeof(v) == "string" and Enum.KeyCode[v] then
+                    library.ToggleKeybind = Enum.KeyCode[v]
+                elseif typeof(v) == "EnumItem" then
+                    library.ToggleKeybind = v
+                end
+            end)
+        end
+
+        -- Themes groupbox (Left)
+        ThemeManager:ApplyToTab(settings_tab)
+
+        -- Configs groupbox (Right)
+        SaveManager:BuildConfigSection(settings_tab)
+
+        -- Auto-load defaults asynchronously
+        task.defer(function()
+            pcall(function() ThemeManager:LoadDefault() end)
+            pcall(function() SaveManager:LoadAutoloadConfig() end)
+        end)
+    end
 
     return window_obj
 end
@@ -3086,7 +3728,11 @@ function ThemeManager:CreateThemeManager(groupbox)
 end
 
 function ThemeManager:ApplyToTab(tab, icon)
+    if ThemeManager.AppliedToTab and ThemeManager.ThemeBox then
+        return ThemeManager.ThemeBox
+    end
     local gb = ThemeManager:CreateGroupBox(tab, icon)
+    ThemeManager.ThemeBox = gb
     return ThemeManager:CreateThemeManager(gb)
 end
 
@@ -3311,6 +3957,9 @@ function SaveManager:LoadAutoloadConfig()
 end
 
 function SaveManager:BuildConfigSection(tab, icon)
+    if SaveManager.BuiltConfigSection and SaveManager.ConfigBox then
+        return SaveManager.ConfigBox
+    end
     local lib = SaveManager.Library or library
     assert(lib, "Library is not set!")
 
@@ -3319,6 +3968,8 @@ function SaveManager:BuildConfigSection(tab, icon)
         Name = "Configuration",
         IconName = icon or "folder-cog"
     })
+    SaveManager.ConfigBox = configBox
+    SaveManager.BuiltConfigSection = true
 
     local configName = configBox:AddInput("SaveManager_ConfigName", {
         Text = "Config name",
