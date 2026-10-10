@@ -452,6 +452,11 @@ local Templates = {
 
         UnlockMouseWhileOpen = true,
 
+        --// Floating Toggle Button \\--
+        ShowToggleButton = true,
+        ToggleButtonLogo = "https://github.com/xvbxvvv/logo/blob/main/0fb782bd-42a8-46bd-8a52-7df5bee0812a.jpg?raw=true",
+        ToggleButtonSize = 56,
+
         EnableSidebarResize = false,
         EnableCompacting = true,
         DisableCompactingSnap = false,
@@ -11085,6 +11090,49 @@ function Library:CreateWindow(WindowInfo)
     )
     Library.TabSwipeOffset = math.max(1, WindowInfo.TabSwipeOffset or 26)
     Library.TabSwipeFrom = WindowInfo.TabSwipeFrom or "right"
+
+    -- Floating Toggle Button (Logo)
+    if WindowInfo.ShowToggleButton then
+        local ToggleButtonSize = WindowInfo.ToggleButtonSize or 56
+        local ToggleButton = New("ImageButton", {
+            Name = "ToggleButton",
+            AnchorPoint = Vector2.new(0, 0),
+            BackgroundTransparency = 1,
+            Position = UDim2.fromOffset(20, 20),
+            Size = UDim2.fromOffset(ToggleButtonSize, ToggleButtonSize),
+            Image = WindowInfo.ToggleButtonLogo or "https://github.com/xvbxvvv/logo/blob/main/0fb782bd-42a8-46bd-8a52-7df5bee0812a.jpg?raw=true",
+            ScaleType = Enum.ScaleType.Fit,
+            ZIndex = 1000,
+            Active = true,
+            Draggable = true,
+            Parent = ScreenGui,
+        })
+        table.insert(Library.Corners, New("UICorner", { CornerRadius = UDim.new(1, 0), Parent = ToggleButton }))
+        table.insert(Library.DraggableElements, ToggleButton)
+
+        local ToggleStroke = New("UIStroke", {
+            Color = Library.Scheme.AccentColor,
+            Thickness = 2,
+            Transparency = 0.3,
+            Parent = ToggleButton,
+        })
+
+        ToggleButton.MouseEnter:Connect(function()
+            TweenService:Create(ToggleStroke, Library.TweenInfo, { Thickness = 3, Transparency = 0 }):Play()
+            TweenService:Create(ToggleButton, Library.TweenInfo, { Size = UDim2.fromOffset(ToggleButtonSize + 6, ToggleButtonSize + 6) }):Play()
+        end)
+
+        ToggleButton.MouseLeave:Connect(function()
+            TweenService:Create(ToggleStroke, Library.TweenInfo, { Thickness = 2, Transparency = 0.3 }):Play()
+            TweenService:Create(ToggleButton, Library.TweenInfo, { Size = UDim2.fromOffset(ToggleButtonSize, ToggleButtonSize) }):Play()
+        end)
+
+        ToggleButton.MouseButton1Click:Connect(function()
+            Library:Toggle()
+        end)
+
+        Library.ToggleButton = ToggleButton
+    end
 
     local IsDefaultSearchbarSize = WindowInfo.SearchbarSize == UDim2.fromScale(1, 1)
     local MainFrame
