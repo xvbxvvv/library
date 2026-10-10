@@ -1784,7 +1784,7 @@ function library:window(cfg)
 
     local title_container = library:create("Frame", {
         Name = "TitleContainer",
-        Size = UDim2.new(0, 85, 0, 32),
+        Size = UDim2.new(0, 110, 0, 32),
         Position = UDim2.new(0, 60, 0, 10),
         BackgroundTransparency = 1,
         BorderSizePixel = 0,
@@ -1792,33 +1792,33 @@ function library:window(cfg)
         Parent = main
     })
 
-    -- Ombre ambiante douce pour un rendu net et premium
+    -- Ombre ambiante pour le style code/minecraft net
     local title_shadow = library:create("TextLabel", {
         Name = "TitleShadow",
         Size = UDim2.new(1, 0, 1, 0),
         Position = UDim2.new(0, 1, 0, 1),
         BackgroundTransparency = 1,
-        FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.Bold, Enum.FontStyle.Normal),
+        Font = Enum.Font.Code,
         RichText = true,
         Text = '<font color="#000000">' .. title_prefix .. title_suffix .. '</font>',
         TextTransparency = 0.65,
-        TextSize = 15,
+        TextSize = 19,
         TextXAlignment = Enum.TextXAlignment.Left,
         TextYAlignment = Enum.TextYAlignment.Center,
         ZIndex = 4,
         Parent = title_container
     })
 
-    -- Texte principal avec .cc en couleur accentuée du thème
+    -- Texte principal avec police Code / Minecraft agrandie et .cc accentué
     local title_label = library:create("TextLabel", {
         Name = "TitleLabel",
         Size = UDim2.new(1, 0, 1, 0),
         Position = UDim2.new(0, 0, 0, 0),
         BackgroundTransparency = 1,
-        FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.Bold, Enum.FontStyle.Normal),
+        Font = Enum.Font.Code,
         RichText = true,
         Text = '<font color="#FFFFFF">' .. title_prefix .. '</font><font color="#' .. self.theme.accent:ToHex() .. '">' .. title_suffix .. '</font>',
-        TextSize = 15,
+        TextSize = 19,
         TextXAlignment = Enum.TextXAlignment.Left,
         TextYAlignment = Enum.TextYAlignment.Center,
         ZIndex = 5,
@@ -1829,7 +1829,7 @@ function library:window(cfg)
     local title_sep = library:create("Frame", {
         Name = "TitleSep",
         Size = UDim2.new(0, 1, 0, 16),
-        Position = UDim2.new(0, 142, 0, 18),
+        Position = UDim2.new(0, 174, 0, 18),
         BackgroundColor3 = self.theme.border_dark,
         BorderSizePixel = 0,
         ZIndex = 4,
@@ -1839,8 +1839,8 @@ function library:window(cfg)
     -- Zone supérieure de contenu avec Search Bar (placée à droite du titre)
     local top_search_bar = library:create("Frame", {
         Name = "TopSearchBar",
-        Size = UDim2.new(1, -186, 0, 32),
-        Position = UDim2.new(0, 152, 0, 10),
+        Size = UDim2.new(1, -220, 0, 32),
+        Position = UDim2.new(0, 184, 0, 10),
         BackgroundColor3 = Color3.fromRGB(26, 23, 38),
         BorderSizePixel = 0,
         ZIndex = 3,
@@ -1900,9 +1900,9 @@ function library:window(cfg)
         Position = UDim2.new(1, -30, 0, 14),
         BackgroundColor3 = Color3.fromRGB(24, 22, 34),
         BorderSizePixel = 0,
-        FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.Bold, Enum.FontStyle.Normal),
-        Text = "✕",
-        TextColor3 = Color3.fromRGB(160, 155, 180),
+        Font = Enum.Font.GothamBold,
+        Text = "X",
+        TextColor3 = Color3.fromRGB(165, 160, 185),
         TextSize = 12,
         AutoButtonColor = false,
         ZIndex = 5,
