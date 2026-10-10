@@ -63,27 +63,27 @@ local library = {
     ToggleKeybind = Enum.KeyCode.RightControl,
 
     Scheme = {
-        BackgroundColor = Color3.fromRGB(15, 15, 15),
-        MainColor       = Color3.fromRGB(22, 22, 22),
-        AccentColor     = Color3.fromRGB(0, 215, 165),
-        OutlineColor    = Color3.fromRGB(42, 42, 42),
-        FontColor       = Color3.fromRGB(225, 225, 225),
+        BackgroundColor = Color3.fromRGB(13, 11, 20),
+        MainColor       = Color3.fromRGB(20, 17, 30),
+        AccentColor     = Color3.fromRGB(157, 92, 255),      -- Violet Électronique
+        OutlineColor    = Color3.fromRGB(45, 38, 65),
+        FontColor       = Color3.fromRGB(235, 235, 245),
         Font            = Font.fromEnum(Enum.Font.SourceSans),
         BackgroundImage = "rbxassetid://2151741365",
     },
 
     theme = {
-        main_bg     = Color3.fromRGB(15, 15, 15),
-        panel_bg    = Color3.fromRGB(19, 19, 19),
-        section_bg  = Color3.fromRGB(22, 22, 22),
-        element_bg  = Color3.fromRGB(26, 26, 26),
-        border      = Color3.fromRGB(42, 42, 42),
-        border_dark = Color3.fromRGB(30, 30, 30),
-        accent      = Color3.fromRGB(0, 215, 165),      -- Vert d'accent Gamesense
-        yellow      = Color3.fromRGB(235, 215, 90),      -- Jaune pour sliders
-        text        = Color3.fromRGB(225, 225, 225),
-        text_dark   = Color3.fromRGB(140, 140, 140),
-        text_dim    = Color3.fromRGB(90, 90, 90),
+        main_bg     = Color3.fromRGB(13, 11, 20),
+        panel_bg    = Color3.fromRGB(18, 15, 28),
+        section_bg  = Color3.fromRGB(23, 20, 35),
+        element_bg  = Color3.fromRGB(28, 24, 42),
+        border      = Color3.fromRGB(48, 40, 70),
+        border_dark = Color3.fromRGB(35, 29, 52),
+        accent      = Color3.fromRGB(157, 92, 255),          -- Violet Électronique
+        yellow      = Color3.fromRGB(235, 215, 90),
+        text        = Color3.fromRGB(235, 235, 245),
+        text_dark   = Color3.fromRGB(150, 145, 175),
+        text_dim    = Color3.fromRGB(100, 95, 125),
     }
 }
 library.__index = library
@@ -855,8 +855,16 @@ local ThemeManager = {
     ContrastLabel = nil,
 
     BuiltInThemes = {
-        ["Default"] = {
+        ["Electric Violet"] = {
             1,
+            { FontColor = "ebebf5", MainColor = "14111e", AccentColor = "9d5cff", BackgroundColor = "0d0b14", OutlineColor = "2d2641", BackgroundImage = "rbxassetid://2151741365" },
+        },
+        ["Cyber Matrix"] = {
+            2,
+            { FontColor = "e6ffe6", MainColor = "0d1811", AccentColor = "00ff9f", BackgroundColor = "08100b", OutlineColor = "183824", BackgroundImage = "rbxassetid://2151741365" },
+        },
+        ["Default"] = {
+            3,
             { FontColor = "ffffff", MainColor = "191919", AccentColor = "00d7a5", BackgroundColor = "0f0f0f", OutlineColor = "282828", BackgroundImage = "" },
         },
         ["BBot"] = {
@@ -1678,11 +1686,49 @@ function library:window(cfg)
         Parent = tab_buttons_holder
     })
 
-    -- Zone supérieure de contenu avec Search Bar (comme sur la capture)
+    -- Titre "ezwin.cc" avec accentuation cyber
+    local raw_title = cfg.Title or cfg.name or cfg.Name or "ezwin.cc"
+    local title_prefix, title_suffix = raw_title:match("^(.-)(%..+)$")
+    if not title_prefix then
+        title_prefix = raw_title
+        title_suffix = ""
+    end
+
+    local title_badge = library:create("Frame", {
+        Name = "TitleBadge",
+        Size = UDim2.new(0, 88, 0, 32),
+        Position = UDim2.new(0, 58, 0, 10),
+        BackgroundColor3 = Color3.fromRGB(20, 17, 30),
+        BorderSizePixel = 0,
+        ZIndex = 3,
+        Parent = main
+    })
+    make_corner(title_badge, 6)
+    make_stroke(title_badge, Color3.fromRGB(42, 38, 58), 1)
+
+    local title_label = library:create("TextLabel", {
+        Name = "TitleLabel",
+        Size = UDim2.new(1, 0, 1, 0),
+        BackgroundTransparency = 1,
+        FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.Bold, Enum.FontStyle.Normal),
+        RichText = true,
+        Text = '<font color="#FFFFFF">' .. title_prefix .. '</font><font color="#' .. self.theme.accent:ToHex() .. '">' .. title_suffix .. '</font>',
+        TextSize = 14,
+        ZIndex = 4,
+        Parent = title_badge
+    })
+
+    library:AddToRegistry(title_label, {
+        Text = function()
+            return '<font color="#FFFFFF">' .. title_prefix .. '</font><font color="#' .. library.theme.accent:ToHex() .. '">' .. title_suffix .. '</font>'
+        end
+    })
+
+    -- Zone supérieure de contenu avec Search Bar (placée à droite du titre)
     local top_search_bar = library:create("Frame", {
         Name = "TopSearchBar",
-        Size = UDim2.new(1, -94, 0, 32),
-        Position = UDim2.new(0, 58, 0, 10),
+        Size = UDim2.new(1, -186, 0, 32),
+        Position = UDim2.new(0, 152, 0, 10),
         BackgroundColor3 = Color3.fromRGB(26, 23, 38),
         BorderSizePixel = 0,
         ZIndex = 3,
