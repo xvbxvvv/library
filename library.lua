@@ -324,6 +324,9 @@ function library:BuildESPPreview(parent, options)
     local show_name = options.nametag
     if show_name == nil then show_name = true end
 
+    local char_transparency = options.transparency
+    if char_transparency == nil then char_transparency = 0.35 end
+
     local holder = library:create("Frame", {
         Parent = parent,
         Name = "ESPPreview",
@@ -472,9 +475,23 @@ function library:BuildESPPreview(parent, options)
         local clone
         local char = LocalPlayer and LocalPlayer.Character
         if char then
+            -- Certains jeux mettent Character.Archivable = false : on le force le temps du clone.
+            local archivable = char.Archivable
+            pcall(function() char.Archivable = true end)
             local ok, c = pcall(function() return char:Clone() end)
-            if ok then clone = c end
+            pcall(function() char.Archivable = archivable end)
+            if ok and typeof(c) == "Instance" then clone = c end
         end
+
+        -- Pas de personnage ? On reconstruit l'apparence réelle du joueur.
+        if not clone then
+            local ok, model = pcall(function()
+                local desc = Players:GetHumanoidDescriptionFromUserId(LocalPlayer.UserId)
+                return Players:CreateHumanoidModelFromDescription(desc, Enum.HumanoidRigType.R15)
+            end)
+            if ok and typeof(model) == "Instance" then clone = model end
+        end
+
         if not clone then
             clone = build_dummy()
         end
@@ -486,7 +503,7 @@ function library:BuildESPPreview(parent, options)
                 d.CanCollide = false
                 d.Anchored = true
                 d.LocalTransparencyModifier = 0
-                d.Transparency = math.max(d.Transparency, 0.38)
+                d.Transparency = math.max(d.Transparency, char_transparency)
             end
         end
 
@@ -551,6 +568,7 @@ function library:BuildESPPreview(parent, options)
         set_box = function(v) show_box = v; box.Visible = v end,
         set_skeleton = function(v) show_skel = v; render() end,
         set_character = function(v) show_char = v; render() end,
+        set_transparency = function(v) char_transparency = v; render() end,
         set_health = function(v) health_bg.Visible = v end,
         set_name = function(v) name_label.Visible = v end,
         set_image = function(src)
