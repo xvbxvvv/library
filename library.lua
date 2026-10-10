@@ -76,6 +76,12 @@ end
 
 -- Load ProggyClean font (matches lib.lua)
 CustomFonts.ProggyClean = LoadCustomFont("ProggyClean", "ProggyClean.ttf")
+-- Load Minecraftia font
+CustomFonts.Minecraftia = LoadCustomFont("Minecraftia", "Minecraftia-Regular.ttf")
+
+-- Ensure fonts are never nil (fallback to Code)
+if not CustomFonts.ProggyClean then CustomFonts.ProggyClean = Font.fromEnum(Enum.Font.Code) end
+if not CustomFonts.Minecraftia then CustomFonts.Minecraftia = Font.fromEnum(Enum.Font.Code) end
 
 local CustomImageManager = {}
 local CustomImageManagerAssets = {
@@ -328,7 +334,7 @@ local Library = {
         AccentColor = Color3.fromRGB(125, 85, 255),
         OutlineColor = Color3.fromRGB(40, 40, 40),
         FontColor = Color3.new(1, 1, 1),
-        Font = CustomFonts.ProggyClean,
+        Font = CustomFonts.Minecraftia,
 
         RedColor = Color3.fromRGB(255, 50, 50),
         DestructiveColor = Color3.fromRGB(220, 38, 38),
@@ -444,7 +450,7 @@ local Templates = {
         NotifySide = "Right",
         ShowCustomCursor = true,
 
-        Font = CustomFonts.ProggyClean,
+        Font = CustomFonts.Minecraftia,
         ToggleKeybind = Enum.KeyCode.RightControl,
 
         ShowMobileButtons = true,
@@ -2124,6 +2130,7 @@ function Library:GetKeyString(KeyCode: Enum.KeyCode)
 end
 
 function Library:GetTextBounds(Text: string, Font: Font, Size: number, Width: number?): (number, number)
+    if not Font then Font = Font.fromEnum(Enum.Font.Code) end
     local Scale = Library.DPIScale
     local Params = Instance.new("GetTextBoundsParams")
     Params.Text = Text
@@ -7236,7 +7243,7 @@ do
         table.insert(
             Library.Corners,
             New("UICorner", {
-                CornerRadius = UDim.new(0, Library.CornerRadius / 2),
+                CornerRadius = UDim.new(1, 0),
                 Parent = Checkbox,
             })
         )
@@ -8489,12 +8496,9 @@ do
         })
 
         local DropdownCorner = New("UICorner", {
-            TopLeftRadius = UDim.new(0, Library.CornerRadius / 2),
-            TopRightRadius = UDim.new(0, Library.CornerRadius / 2),
-            BottomRightRadius = UDim.new(0, Library.CornerRadius / 2),
-            BottomLeftRadius = UDim.new(0, Library.CornerRadius / 2),
+            CornerRadius = UDim.new(0, Library.CornerRadius),
             Parent = DisplayContainer,
-        }); table.insert(Library.SpecificCorners, DropdownCorner)
+        }); table.insert(Library.Corners, DropdownCorner)
 
         local DisplayImage = New("ImageLabel", {
             BackgroundTransparency = 1,
@@ -8613,24 +8617,25 @@ do
                     SearchBox.Visible = Active
                 end
 
+                local Full = UDim.new(0, Library.CornerRadius)
                 local Half = UDim.new(0, Library.CornerRadius / 2)
                 local Zero = UDim.new(0, 0)
 
-                DropdownCorner.TopLeftRadius = Half
-                DropdownCorner.TopRightRadius = Half
-                DropdownCorner.BottomRightRadius = Active and Zero or Half
-                DropdownCorner.BottomLeftRadius = Active and Zero or Half
+                DropdownCorner.TopLeftRadius = Full
+                DropdownCorner.TopRightRadius = Full
+                DropdownCorner.BottomRightRadius = Full
+                DropdownCorner.BottomLeftRadius = Full
 
                 local MenuCorner = MenuTable and MenuTable.Corner
                 if MenuCorner then
-                    MenuCorner.TopLeftRadius = Zero
-                    MenuCorner.TopRightRadius = Zero
-                    MenuCorner.BottomRightRadius = Half
-                    MenuCorner.BottomLeftRadius = Half
+                    MenuCorner.TopLeftRadius = Full
+                    MenuCorner.TopRightRadius = Full
+                    MenuCorner.BottomRightRadius = Full
+                    MenuCorner.BottomLeftRadius = Full
                 end
             end,
             false,
-            "bottom",
+            nil,
             "Dropdown"
         )
         Dropdown.Menu = MenuTable
