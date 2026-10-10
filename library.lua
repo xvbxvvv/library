@@ -1,27 +1,75 @@
 -- ==============================================================================
--- GAMESENSE UI LIBRARY (skeet.cc style + Monolith custom elements)
+-- GAMESENSE UI LIBRARY (skeet.cc style + Obsidian / Library 5 API Compatibility)
+-- Integrated ThemeManager & SaveManager (ConfigManager)
 -- Reusable Luau Library for Roblox
 -- ==============================================================================
 
-local UserInputService = game:GetService("UserInputService")
-local Players = game:GetService("Players")
-local TweenService = game:GetService("TweenService")
-local CoreGui = game:GetService("CoreGui")
-local RunService = game:GetService("RunService")
-local GuiService = game:GetService("GuiService")
-local HttpService = game:GetService("HttpService")
+local cloneref = (cloneref or clonereference or function(instance: any)
+    return instance
+end)
+local clonefunction = (clonefunction or copyfunction or function(func)
+    return func
+end)
 
-local LocalPlayer = Players.LocalPlayer
+local UserInputService: UserInputService = cloneref(game:GetService("UserInputService"))
+local Players: Players                   = cloneref(game:GetService("Players"))
+local TweenService: TweenService         = cloneref(game:GetService("TweenService"))
+local CoreGui: CoreGui                   = cloneref(game:GetService("CoreGui"))
+local RunService: RunService             = cloneref(game:GetService("RunService"))
+local GuiService: GuiService             = cloneref(game:GetService("GuiService"))
+local HttpService: HttpService           = cloneref(game:GetService("HttpService"))
+
+local isfolder   = isfolder or function(_) return false end
+local isfile     = isfile or function(_) return false end
+local makefolder = makefolder or function(_) end
+local writefile  = writefile or function(_, _) end
+local readfile   = readfile or function(_) return "" end
+local delfile    = delfile or function(_) end
+local listfiles  = listfiles or function(_) return {} end
+
+local LocalPlayer = Players.LocalPlayer or Players.PlayerAdded:Wait()
 local Mouse = LocalPlayer:GetMouse()
 local GuiInset = GuiService:GetGuiInset().Y
 
 local TargetGui = (pcall(function() return CoreGui end) and CoreGui) or LocalPlayer:WaitForChild("PlayerGui")
+
+-- Registry and state tables
+local Labels   = {}
+local Buttons  = {}
+local Toggles  = {}
+local Options  = {}
+local Tooltips = {}
 
 local library = {
     flags = {},
     config_flags = {},
     connections = {},
     notifications = { notifs = {} },
+
+    -- Obsidian / Library 5 API compatibility
+    Options = Options,
+    Toggles = Toggles,
+    Labels = Labels,
+    Buttons = Buttons,
+    Tooltips = Tooltips,
+    Registry = {},
+    Tabs = {},
+    TabButtons = {},
+
+    Toggled = true,
+    Unloaded = false,
+    ToggleKeybind = Enum.KeyCode.RightControl,
+
+    Scheme = {
+        BackgroundColor = Color3.fromRGB(15, 15, 15),
+        MainColor       = Color3.fromRGB(22, 22, 22),
+        AccentColor     = Color3.fromRGB(0, 215, 165),
+        OutlineColor    = Color3.fromRGB(42, 42, 42),
+        FontColor       = Color3.fromRGB(225, 225, 225),
+        Font            = Font.fromEnum(Enum.Font.SourceSans),
+        BackgroundImage = "",
+    },
+
     theme = {
         main_bg     = Color3.fromRGB(15, 15, 15),
         panel_bg    = Color3.fromRGB(19, 19, 19),
@@ -29,7 +77,7 @@ local library = {
         element_bg  = Color3.fromRGB(26, 26, 26),
         border      = Color3.fromRGB(42, 42, 42),
         border_dark = Color3.fromRGB(30, 30, 30),
-        accent      = Color3.fromRGB(0, 215, 165),      -- Vert d'accent / cyan
+        accent      = Color3.fromRGB(0, 215, 165),      -- Vert d'accent Gamesense
         yellow      = Color3.fromRGB(235, 215, 90),      -- Jaune pour sliders
         text        = Color3.fromRGB(225, 225, 225),
         text_dark   = Color3.fromRGB(140, 140, 140),
@@ -38,10 +86,12 @@ local library = {
 }
 library.__index = library
 
--- Helpers & Utility
+-- ==============================================================================
+-- HELPERS & UTILITY
+-- ==============================================================================
 function library:create(instance, options)
     local ins = Instance.new(instance)
-    for prop, value in options do
+    for prop, value in pairs(options) do
         ins[prop] = value
     end
     return ins
@@ -59,6 +109,7 @@ function library:round(number, float)
 end
 
 function library:mouse_in_frame(uiobject)
+    if not uiobject or not uiobject.Parent then return false end
     local p = UserInputService:GetMouseLocation()
     return uiobject.AbsolutePosition.Y <= p.Y and p.Y <= uiobject.AbsolutePosition.Y + uiobject.AbsoluteSize.Y
        and uiobject.AbsolutePosition.X <= p.X and p.X <= uiobject.AbsolutePosition.X + uiobject.AbsoluteSize.X
@@ -111,7 +162,198 @@ local function make_draggable(frame)
 end
 
 -- ==============================================================================
--- LUCIDE ICON API (identique à Library 5 / Obsidian)
+-- REGISTRY & THEME SYNCHRONIZATION
+-- ==============================================================================
+function library:AddToRegistry(instance, properties, isScheme)
+    if not instance then return end
+    library.Registry[instance] = {
+        Properties = properties,
+        IsScheme = isScheme or false
+    }
+end
+
+function library:RemoveFromRegistry(instance)
+    library.Registry[instance] = nil
+end
+
+function library:UpdateTheme()
+    library.theme.main_bg = library.Scheme.BackgroundColor
+    library.theme.panel_bg = library.Scheme.MainColor
+    library.theme.section_bg = library.Scheme.MainColor
+    library.theme.element_bg = Color3.fromRGB(
+        math.clamp(math.floor(library.Scheme.MainColor.R * 255 + 5), 0, 255),
+        math.clamp(math.floor(library.Scheme.MainColor.G * 255 + 5), 0, 255),
+        math.clamp(math.floor(library.Scheme.MainColor.B * 255 + 5), 0, 255)
+    )
+    library.theme.border = library.Scheme.OutlineColor
+    library.theme.border_dark = Color3.fromRGB(
+        math.clamp(math.floor(library.Scheme.OutlineColor.R * 255 * 0.75), 0, 255),
+        math.clamp(math.floor(library.Scheme.OutlineColor.G * 255 * 0.75), 0, 255),
+        math.clamp(math.floor(library.Scheme.OutlineColor.B * 255 * 0.75), 0, 255)
+    )
+    library.theme.accent = library.Scheme.AccentColor
+    library.theme.text = library.Scheme.FontColor
+
+    for instance, data in pairs(library.Registry) do
+        if instance and instance.Parent then
+            pcall(function()
+                for prop, schemeIndex in pairs(data.Properties) do
+                    if schemeIndex == "BackgroundColor" then
+                        instance[prop] = library.Scheme.BackgroundColor
+                    elseif schemeIndex == "MainColor" then
+                        instance[prop] = library.Scheme.MainColor
+                    elseif schemeIndex == "AccentColor" then
+                        instance[prop] = library.Scheme.AccentColor
+                    elseif schemeIndex == "OutlineColor" then
+                        instance[prop] = library.Scheme.OutlineColor
+                    elseif schemeIndex == "FontColor" then
+                        instance[prop] = library.Scheme.FontColor
+                    end
+                end
+            end)
+        end
+    end
+end
+
+function library:SetFont(font)
+    if typeof(font) == "EnumItem" then
+        library.Scheme.Font = Font.fromEnum(font)
+    elseif typeof(font) == "Font" then
+        library.Scheme.Font = font
+    end
+end
+
+function library:SetBackgroundImage(url)
+    library.Scheme.BackgroundImage = url or ""
+    if library.Window and library.Window.background_image then
+        library.Window.background_image.Image = url or ""
+        library.Window.background_image.Visible = (url ~= nil and url ~= "")
+    end
+end
+
+-- ==============================================================================
+-- NOTIFICATION SYSTEM (gamesense sleek toast)
+-- ==============================================================================
+local notif_container = nil
+local function ensure_notif_container()
+    if notif_container and notif_container.Parent then return notif_container end
+    notif_container = library:create("Frame", {
+        Name = "GameSense_Notifs",
+        Size = UDim2.new(0, 260, 1, -20),
+        Position = UDim2.new(1, -270, 0, 10),
+        BackgroundTransparency = 1,
+        Parent = TargetGui
+    })
+    library:create("UIListLayout", {
+        SortOrder = Enum.SortOrder.LayoutOrder,
+        VerticalAlignment = Enum.VerticalAlignment.Bottom,
+        Padding = UDim.new(0, 6),
+        Parent = notif_container
+    })
+    return notif_container
+end
+
+function library:Notify(options)
+    local title = "Notification"
+    local desc = ""
+    local duration = 4
+
+    if type(options) == "string" then
+        desc = options
+    elseif type(options) == "table" then
+        title = options.Title or options.title or title
+        desc = options.Description or options.description or options.Text or options.text or ""
+        duration = options.Time or options.time or options.Duration or duration
+    end
+
+    local holder = ensure_notif_container()
+
+    local toast = library:create("Frame", {
+        Name = "Toast",
+        Size = UDim2.new(1, 0, 0, 0),
+        AutomaticSize = Enum.AutomaticSize.Y,
+        BackgroundColor3 = library.theme.panel_bg,
+        BorderSizePixel = 0,
+        Position = UDim2.new(1, 40, 0, 0),
+        BackgroundTransparency = 0,
+        Parent = holder
+    })
+    make_corner(toast, 3)
+    make_stroke(toast, library.theme.border, 1)
+
+    local top_bar = library:create("Frame", {
+        Size = UDim2.new(1, 0, 0, 2),
+        BackgroundColor3 = library.theme.accent,
+        BorderSizePixel = 0,
+        Parent = toast
+    })
+
+    local pad = library:create("UIPadding", {
+        PaddingTop = UDim.new(0, 6),
+        PaddingBottom = UDim.new(0, 6),
+        PaddingLeft = UDim.new(0, 8),
+        PaddingRight = UDim.new(0, 8),
+        Parent = toast
+    })
+
+    local content_box = library:create("Frame", {
+        Size = UDim2.new(1, 0, 0, 0),
+        AutomaticSize = Enum.AutomaticSize.Y,
+        BackgroundTransparency = 1,
+        Parent = toast
+    })
+    library:create("UIListLayout", {
+        SortOrder = Enum.SortOrder.LayoutOrder,
+        Padding = UDim.new(0, 2),
+        Parent = content_box
+    })
+
+    if title and title ~= "" then
+        library:create("TextLabel", {
+            Text = title,
+            FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.Bold, Enum.FontStyle.Normal),
+            TextColor3 = library.theme.text,
+            TextSize = 12,
+            BackgroundTransparency = 1,
+            Size = UDim2.new(1, 0, 0, 14),
+            TextXAlignment = Enum.TextXAlignment.Left,
+            Parent = content_box
+        })
+    end
+
+    if desc and desc ~= "" then
+        library:create("TextLabel", {
+            Text = desc,
+            FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal),
+            TextColor3 = library.theme.text_dark,
+            TextSize = 11,
+            TextWrapped = true,
+            BackgroundTransparency = 1,
+            Size = UDim2.new(1, 0, 0, 0),
+            AutomaticSize = Enum.AutomaticSize.Y,
+            TextXAlignment = Enum.TextXAlignment.Left,
+            Parent = content_box
+        })
+    end
+
+    -- Timer bar tween
+    top_bar.Size = UDim2.new(1, 0, 0, 2)
+    library:tween(top_bar, { Size = UDim2.new(0, 0, 0, 2) }, Enum.EasingStyle.Linear, duration)
+
+    task.delay(duration, function()
+        if toast and toast.Parent then
+            local tw = library:tween(toast, { BackgroundTransparency = 1 }, nil, 0.25)
+            tw.Completed:Connect(function()
+                toast:Destroy()
+            end)
+        end
+    end)
+
+    return toast
+end
+
+-- ==============================================================================
+-- LUCIDE ICON API
 -- ==============================================================================
 local FetchIcons = false
 local Icons = nil
@@ -254,7 +496,7 @@ function library:ApplyIcon(image_gui, icon, rotation)
     image_gui.ImageRectSize = icon.ImageRectSize or image_gui.ImageRectSize
 end
 
--- Récupération en ligne du module d'icônes Lucide
+-- Chargeur Lucide en ligne
 local icons_ok, icons_module = pcall(function()
     return (loadstring(game:HttpGet("https://raw.githubusercontent.com/notpoiu/lucide-roblox-direct/refs/heads/main/source.lua")))()
 end)
@@ -265,8 +507,6 @@ end
 
 -- ==============================================================================
 -- ESP PREVIEW BUILDER
--- Rend le VRAI personnage du joueur (de face) + box + skeleton + vie + nom.
--- Utilisé à la fois en mode "intégré au menu" et "fenêtre flottante".
 -- ==============================================================================
 local ESP_BONES_R15 = {
     {"Head", "UpperTorso"},
@@ -283,10 +523,6 @@ local ESP_BONES_R6 = {
     {"Torso", "Left Leg"}, {"Torso", "Right Leg"},
 }
 
--- Résout une source d'image :
---   "123456789"                    -> rbxassetid://123456789
---   "rbxassetid://..." / "rbxasset://..." -> tel quel
---   "https://.../image.png" (raw)  -> téléchargé puis converti en asset local
 local function resolve_image(src)
     if type(src) ~= "string" or src == "" then return "" end
     if src:match("^%d+$") then return "rbxassetid://" .. src end
@@ -337,7 +573,6 @@ function library:BuildESPPreview(parent, options)
     make_corner(holder, 3)
     make_stroke(holder, library.theme.border_dark, 1)
 
-    -- Image custom (id Roblox ou URL raw), affichée derrière le personnage
     local image_label = library:create("ImageLabel", {
         Name = "CustomImage",
         Size = UDim2.new(1, 0, 1, 0),
@@ -351,7 +586,6 @@ function library:BuildESPPreview(parent, options)
     })
     make_corner(image_label, 3)
 
-    -- ViewportFrame : c'est ici qu'est rendu le personnage
     local viewport = library:create("ViewportFrame", {
         Name = "CharacterView",
         Size = UDim2.new(1, 0, 1, 0),
@@ -370,13 +604,11 @@ function library:BuildESPPreview(parent, options)
     viewport.CurrentCamera = view_cam
     view_cam.Parent = viewport
 
-    -- WorldModel : nécessaire pour que vêtements / accessoires du perso s'affichent correctement
     local world = library:create("WorldModel", {
         Name = "World",
         Parent = viewport,
     })
 
-    -- Boîte englobante 2D
     local box = library:create("Frame", {
         Name = "Box",
         AnchorPoint = Vector2.new(0.5, 0.5),
@@ -389,7 +621,6 @@ function library:BuildESPPreview(parent, options)
     })
     local box_stroke = make_stroke(box, esp_color, 1)
 
-    -- Barre de vie
     local health_bg = library:create("Frame", {
         Name = "Health",
         AnchorPoint = Vector2.new(1, 0.5),
@@ -409,7 +640,6 @@ function library:BuildESPPreview(parent, options)
         Parent = health_bg,
     })
 
-    -- Nom
     local name_label = library:create("TextLabel", {
         Name = "NameTag",
         AnchorPoint = Vector2.new(0.5, 0),
@@ -428,12 +658,11 @@ function library:BuildESPPreview(parent, options)
     })
 
     local function clear_view()
-        for _, child in world:GetChildren() do
+        for _, child in ipairs(world:GetChildren()) do
             child:Destroy()
         end
     end
 
-    -- Dummy de secours si le joueur n'a pas de personnage (évite un aperçu vide/noir)
     local function build_dummy()
         local model = Instance.new("Model")
         model.Name = "Dummy"
@@ -451,102 +680,79 @@ function library:BuildESPPreview(parent, options)
             p.Parent = model
             return p
         end
-        local skin = Color3.fromRGB(224, 200, 138)
-        local cloth = Color3.fromRGB(58, 110, 168)
-        local pant = Color3.fromRGB(46, 46, 52)
-        mk("Head", Vector3.new(0.85, 0.85, 0.85), Vector3.new(0, 3.1, 0), skin)
-        mk("UpperTorso", Vector3.new(1.35, 1.0, 0.6), Vector3.new(0, 2.15, 0), cloth)
-        mk("LowerTorso", Vector3.new(1.25, 0.7, 0.6), Vector3.new(0, 1.3, 0), cloth)
-        mk("LeftUpperArm", Vector3.new(0.32, 0.85, 0.32), Vector3.new(-0.85, 2.15, 0), skin)
-        mk("RightUpperArm", Vector3.new(0.32, 0.85, 0.32), Vector3.new(0.85, 2.15, 0), skin)
-        mk("LeftLowerArm", Vector3.new(0.32, 0.8, 0.32), Vector3.new(-0.85, 1.32, 0), skin)
-        mk("RightLowerArm", Vector3.new(0.32, 0.8, 0.32), Vector3.new(0.85, 1.32, 0), skin)
-        mk("LeftHand", Vector3.new(0.34, 0.34, 0.34), Vector3.new(-0.85, 0.82, 0), skin)
-        mk("RightHand", Vector3.new(0.34, 0.34, 0.34), Vector3.new(0.85, 0.82, 0), skin)
-        mk("LeftUpperLeg", Vector3.new(0.4, 0.85, 0.4), Vector3.new(-0.33, 0.85, 0), pant)
-        mk("RightUpperLeg", Vector3.new(0.4, 0.85, 0.4), Vector3.new(0.33, 0.85, 0), pant)
-        mk("LeftLowerLeg", Vector3.new(0.4, 0.85, 0.4), Vector3.new(-0.33, 0.0, 0), pant)
-        mk("RightLowerLeg", Vector3.new(0.4, 0.85, 0.4), Vector3.new(0.33, 0.0, 0), pant)
-        mk("LeftFoot", Vector3.new(0.4, 0.28, 0.62), Vector3.new(-0.33, -0.55, 0.1), Color3.fromRGB(28, 28, 32))
-        mk("RightFoot", Vector3.new(0.4, 0.28, 0.62), Vector3.new(0.33, -0.55, 0.1), Color3.fromRGB(28, 28, 32))
+        local skin = Color3.fromRGB(225, 195, 160)
+        local shirt = Color3.fromRGB(45, 85, 140)
+        local pants = Color3.fromRGB(35, 40, 50)
+        local head = mk("Head", Vector3.new(1.2, 1.2, 1.2), Vector3.new(0, 4.5, 0), skin)
+        local torso = mk("Torso", Vector3.new(2, 2, 1), Vector3.new(0, 3, 0), shirt)
+        mk("Left Arm", Vector3.new(1, 2, 1), Vector3.new(-1.5, 3, 0), shirt)
+        mk("Right Arm", Vector3.new(1, 2, 1), Vector3.new(1.5, 3, 0), shirt)
+        mk("Left Leg", Vector3.new(1, 2, 1), Vector3.new(-0.5, 1, 0), pants)
+        mk("Right Leg", Vector3.new(1, 2, 1), Vector3.new(0.5, 1, 0), pants)
+        model.PrimaryPart = torso
         return model
     end
 
     local function render()
         clear_view()
-        if not show_char then return end
-
-        local clone
-        local char = LocalPlayer and LocalPlayer.Character
-        if char then
-            -- Certains jeux mettent Character.Archivable = false : on le force le temps du clone.
-            local archivable = char.Archivable
-            pcall(function() char.Archivable = true end)
-            local ok, c = pcall(function() return char:Clone() end)
-            pcall(function() char.Archivable = archivable end)
-            if ok and typeof(c) == "Instance" then clone = c end
-        end
-
-        -- Pas de personnage ? On reconstruit l'apparence réelle du joueur.
-        if not clone then
-            local ok, model = pcall(function()
-                local desc = Players:GetHumanoidDescriptionFromUserId(LocalPlayer.UserId)
-                return Players:CreateHumanoidModelFromDescription(desc, Enum.HumanoidRigType.R15)
-            end)
-            if ok and typeof(model) == "Instance" then clone = model end
+        local clone = nil
+        local char = LocalPlayer.Character
+        if char and char:FindFirstChild("HumanoidRootPart") then
+            char.Archivable = true
+            clone = char:Clone()
+            char.Archivable = false
         end
 
         if not clone then
             clone = build_dummy()
         end
 
-        for _, d in clone:GetDescendants() do
-            if d:IsA("Script") or d:IsA("LocalScript") or d:IsA("ModuleScript") then
-                d:Destroy()
-            elseif d:IsA("BasePart") then
-                d.CanCollide = false
-                d.Anchored = true
-                d.LocalTransparencyModifier = 0
-                d.Transparency = math.max(d.Transparency, char_transparency)
+        local root = clone:FindFirstChild("HumanoidRootPart") or clone:FindFirstChild("Torso") or clone.PrimaryPart
+        if not root then
+            clone:Destroy()
+            return
+        end
+
+        for _, item in ipairs(clone:GetDescendants()) do
+            if item:IsA("Script") or item:IsA("LocalScript") or item:IsA("Sound") or item:IsA("ParticleEmitter") then
+                item:Destroy()
+            elseif item:IsA("BasePart") then
+                item.Anchored = true
+                item.CanCollide = false
+                item.CanTouch = false
+                item.CanQuery = false
+                if not show_char then
+                    item.Transparency = 1
+                else
+                    item.Transparency = math.clamp(char_transparency, 0, 1)
+                end
             end
         end
 
         clone.Parent = world
+        local cf, size = clone:GetBoundingBox()
+        local center = cf.Position
+        local max_dim = math.max(size.X, size.Y, size.Z)
+        local dist = max_dim / (2 * math.tan(math.rad(view_cam.FieldOfView / 2))) * 1.05
 
-        -- On centre le personnage sur l'origine puis on place la caméra face à lui.
-        local bsize = Vector3.new(2, 5, 1)
-        pcall(function()
-            clone:PivotTo(CFrame.new(0, 0, 0))
-            local bcf, size = clone:GetBoundingBox()
-            bsize = size
-            clone:PivotTo(CFrame.new(-bcf.Position))
-        end)
+        view_cam.CFrame = CFrame.new(center + Vector3.new(0, 0, dist), center)
 
-        local dist = math.max((bsize.Y * 0.5) / math.tan(math.rad(view_cam.FieldOfView * 0.5)) * 1.18, 3)
-        view_cam.CFrame = CFrame.lookAt(Vector3.new(0, 0, -dist), Vector3.new(0, 0, 0))
-
-        -- Boîte ajustée à la carrure réelle
-        local box_w = math.clamp((bsize.X / math.max(bsize.Y, 0.1)) * 0.9, 0.32, 0.85)
-        box.Size = UDim2.new(box_w, 0, 0.85, 0)
-        health_bg.Position = UDim2.new(0.5 - box_w / 2, -3, 0.5, 2)
-
-        -- Squelette dessiné en 3D (donc parfaitement aligné sur le perso)
         if show_skel then
-            local links = clone:FindFirstChild("UpperTorso") and ESP_BONES_R15 or ESP_BONES_R6
-            for _, pair in links do
+            local is_r15 = clone:FindFirstChild("UpperTorso") ~= nil
+            local bone_pairs = is_r15 and ESP_BONES_R15 or ESP_BONES_R6
+
+            for _, pair in ipairs(bone_pairs) do
                 local a = clone:FindFirstChild(pair[1])
                 local b = clone:FindFirstChild(pair[2])
                 if a and b then
-                    local aPos, bPos = a.Position, b.Position
-                    local len = (aPos - bPos).Magnitude
-                    if len > 0 then
+                    local aPos = a.Position
+                    local bPos = b.Position
+                    local len = (bPos - aPos).Magnitude
+                    if len > 0.05 then
                         local bone = Instance.new("Part")
-                        bone.Name = "Bone"
                         bone.Anchored = true
                         bone.CanCollide = false
                         bone.CanQuery = false
-                        bone.CanTouch = false
-                        bone.CastShadow = false
                         bone.Material = Enum.Material.SmoothPlastic
                         bone.Color = esp_color
                         bone.Size = Vector3.new(0.07, 0.07, len)
@@ -574,7 +780,7 @@ function library:BuildESPPreview(parent, options)
         set_character = function(v) show_char = v; render() end,
         set_transparency = function(v) char_transparency = v; render() end,
         set_health = function(v) health_bg.Visible = v end,
-        set_name = function(v) name_label.Visible = v end,
+        set_name = function(v) name_label.Text = v end,
         set_image = function(src)
             image_src = src
             image_label.Image = resolve_image(src)
@@ -594,14 +800,17 @@ function library:BuildESPPreview(parent, options)
 end
 
 -- ==============================================================================
--- WINDOW
+-- WINDOW / CREATEWINDOW
 -- ==============================================================================
+function library:CreateWindow(cfg)
+    return self:window(cfg)
+end
+
 function library:window(cfg)
     cfg = cfg or {}
-    local window_name = cfg.name or "gamesense"
-    local window_size = cfg.size or UDim2.new(0, 500, 0, 360)
+    local window_name = cfg.Title or cfg.name or cfg.Name or "gamesense"
+    local window_size = cfg.size or cfg.Size or UDim2.new(0, 520, 0, 380)
 
-    -- Nettoyage des anciennes fenêtres : évite d'empiler les exécutions précédentes
     for _, g in ipairs(TargetGui:GetChildren()) do
         if g:IsA("ScreenGui") and g.Name:match("^GameSense_") then
             g:Destroy()
@@ -615,8 +824,8 @@ function library:window(cfg)
         Parent = TargetGui
     })
     self.screen = screen
+    self.ScreenGui = screen
 
-    -- Cadre extérieur principal
     local main = library:create("Frame", {
         Name = "MainFrame",
         Size = window_size,
@@ -629,17 +838,42 @@ function library:window(cfg)
     make_stroke(main, self.theme.border, 1)
     make_draggable(main)
 
+    local bg_img = library:create("ImageLabel", {
+        Name = "BackgroundImage",
+        Size = UDim2.new(1, 0, 1, 0),
+        BackgroundTransparency = 1,
+        Image = library.Scheme.BackgroundImage or "",
+        ScaleType = Enum.ScaleType.Crop,
+        Visible = (library.Scheme.BackgroundImage ~= nil and library.Scheme.BackgroundImage ~= ""),
+        ZIndex = 1,
+        Parent = main
+    })
+    make_corner(bg_img, 4)
+
+    -- Top glowing line (gamesense accent border)
+    local top_accent = library:create("Frame", {
+        Name = "TopAccent",
+        Size = UDim2.new(1, 0, 0, 2),
+        BackgroundColor3 = self.theme.accent,
+        BorderSizePixel = 0,
+        ZIndex = 5,
+        Parent = main
+    })
+    library:AddToRegistry(top_accent, { BackgroundColor = "AccentColor" })
+
     -- Sidebar (Navigation verticale)
     local sidebar = library:create("Frame", {
         Name = "Sidebar",
-        Size = UDim2.new(0, 44, 1, 0),
-        Position = UDim2.new(0, 0, 0, 0),
+        Size = UDim2.new(0, 44, 1, -2),
+        Position = UDim2.new(0, 0, 0, 2),
         BackgroundColor3 = self.theme.main_bg,
         BorderSizePixel = 0,
+        ZIndex = 2,
         Parent = main
     })
+    library:AddToRegistry(sidebar, { BackgroundColor = "BackgroundColor" })
 
-    local sidebar_layout = library:create("UIListLayout", {
+    library:create("UIListLayout", {
         Padding = UDim.new(0, 4),
         HorizontalAlignment = Enum.HorizontalAlignment.Center,
         SortOrder = Enum.SortOrder.LayoutOrder,
@@ -654,9 +888,10 @@ function library:window(cfg)
     -- Zone de contenu
     local content_holder = library:create("Frame", {
         Name = "Content",
-        Size = UDim2.new(1, -48, 1, -6),
-        Position = UDim2.new(0, 46, 0, 3),
+        Size = UDim2.new(1, -48, 1, -8),
+        Position = UDim2.new(0, 46, 0, 5),
         BackgroundTransparency = 1,
+        ZIndex = 2,
         Parent = main
     })
 
@@ -665,11 +900,126 @@ function library:window(cfg)
         screen = screen,
         sidebar = sidebar,
         content = content_holder,
+        background_image = bg_img,
         tabs = {},
         current_tab = nil
     }
+    library.Window = window_obj
 
-    -- Watermark (1) - long, affiche titre + heure + FPS
+    -- ==============================================================================
+    -- DIALOG MODAL SYSTEM (pour SaveManager & ThemeManager)
+    -- ==============================================================================
+    function window_obj:AddDialog(index, options)
+        options = options or {}
+        local title = options.Title or options.name or "Dialog"
+        local desc = options.Description or options.text or ""
+        local footer_buttons = options.FooterButtons or {}
+
+        local modal_bg = library:create("TextButton", {
+            Name = "Modal_" .. tostring(index),
+            Size = UDim2.new(1, 0, 1, 0),
+            BackgroundColor3 = Color3.fromRGB(0, 0, 0),
+            BackgroundTransparency = 0.5,
+            Text = "",
+            AutoButtonColor = false,
+            ZIndex = 200,
+            Parent = screen
+        })
+
+        local dialog_frame = library:create("Frame", {
+            Size = UDim2.new(0, 280, 0, 130),
+            Position = UDim2.new(0.5, -140, 0.5, -65),
+            BackgroundColor3 = library.theme.panel_bg,
+            BorderSizePixel = 0,
+            ZIndex = 201,
+            Parent = modal_bg
+        })
+        make_corner(dialog_frame, 4)
+        make_stroke(dialog_frame, library.theme.border, 1)
+
+        library:create("TextLabel", {
+            Size = UDim2.new(1, -20, 0, 24),
+            Position = UDim2.new(0, 10, 0, 8),
+            BackgroundTransparency = 1,
+            Font = Enum.Font.SourceSansBold,
+            Text = title,
+            TextColor3 = library.theme.text,
+            TextSize = 13,
+            TextXAlignment = Enum.TextXAlignment.Left,
+            ZIndex = 202,
+            Parent = dialog_frame
+        })
+
+        library:create("TextLabel", {
+            Size = UDim2.new(1, -20, 0, 48),
+            Position = UDim2.new(0, 10, 0, 32),
+            BackgroundTransparency = 1,
+            Font = Enum.Font.SourceSans,
+            Text = desc,
+            TextColor3 = library.theme.text_dark,
+            TextSize = 12,
+            TextWrapped = true,
+            TextXAlignment = Enum.TextXAlignment.Left,
+            TextYAlignment = Enum.TextYAlignment.Top,
+            ZIndex = 202,
+            Parent = dialog_frame
+        })
+
+        local btn_container = library:create("Frame", {
+            Size = UDim2.new(1, -20, 0, 24),
+            Position = UDim2.new(0, 10, 1, -32),
+            BackgroundTransparency = 1,
+            ZIndex = 202,
+            Parent = dialog_frame
+        })
+        library:create("UIListLayout", {
+            FillDirection = Enum.FillDirection.Horizontal,
+            HorizontalAlignment = Enum.HorizontalAlignment.Right,
+            Padding = UDim.new(0, 8),
+            SortOrder = Enum.SortOrder.LayoutOrder,
+            Parent = btn_container
+        })
+
+        local dialog_obj = {}
+        function dialog_obj:Dismiss()
+            modal_bg:Destroy()
+        end
+
+        for btn_name, btn_cfg in pairs(footer_buttons) do
+            local btn = library:create("TextButton", {
+                AutomaticSize = Enum.AutomaticSize.X,
+                Size = UDim2.new(0, 60, 1, 0),
+                BackgroundColor3 = (btn_cfg.Variant == "Destructive" and Color3.fromRGB(180, 40, 40)) or library.theme.element_bg,
+                BorderSizePixel = 0,
+                Font = Enum.Font.SourceSansBold,
+                Text = btn_cfg.Title or btn_name,
+                TextColor3 = Color3.fromRGB(255, 255, 255),
+                TextSize = 11,
+                LayoutOrder = btn_cfg.Order or 1,
+                ZIndex = 203,
+                Parent = btn_container
+            })
+            make_corner(btn, 3)
+            make_stroke(btn, library.theme.border, 1)
+            library:create("UIPadding", {
+                PaddingLeft = UDim.new(0, 10),
+                PaddingRight = UDim.new(0, 10),
+                Parent = btn
+            })
+
+            btn.MouseButton1Click:Connect(function()
+                if btn_cfg.Callback then
+                    btn_cfg.Callback(dialog_obj)
+                else
+                    dialog_obj:Dismiss()
+                end
+            end)
+        end
+
+        return dialog_obj
+    end
+
+    -- Watermark (gamesense)
     function window_obj:watermark(wcfg)
         wcfg = wcfg or {}
         local text = wcfg.name or wcfg.text or "gamesense | user | 60 fps"
@@ -686,12 +1036,13 @@ function library:window(cfg)
         make_stroke(wm, library.theme.border, 1)
         make_draggable(wm)
 
-        library:create("Frame", {
+        local top_stripe = library:create("Frame", {
             Size = UDim2.new(1, 0, 0, 1),
-            BackgroundColor3 = Color3.fromRGB(0, 215, 165),
+            BackgroundColor3 = library.theme.accent,
             BackgroundTransparency = 0,
             Parent = wm
         })
+        library:AddToRegistry(top_stripe, { BackgroundColor = "AccentColor" })
 
         library:create("UIPadding", {
             PaddingLeft = UDim.new(0, 8),
@@ -709,7 +1060,6 @@ function library:window(cfg)
             Parent = wm
         })
 
-        -- Auto-update titre/heure/FPS
         local last = tick()
         local frames = 0
         library:connection(RunService.RenderStepped, function()
@@ -730,7 +1080,7 @@ function library:window(cfg)
         }
     end
 
-    -- Floating window (Features activées)
+    -- Floating window
     function window_obj:floating(fcfg)
         fcfg = fcfg or {}
         local title = fcfg.title or "Features"
@@ -804,7 +1154,6 @@ function library:window(cfg)
             end
         end
 
-        -- Compat : ancienne API row(label, valeur, couleur)
         function float_obj:row(lbl_text, val_text, val_col)
             local row = library:create("Frame", {
                 Size = UDim2.new(1, 0, 0, 14),
@@ -841,34 +1190,10 @@ function library:window(cfg)
             }
         end
 
-        -- Compat : barre de progression
-        function float_obj:progress(percent, col)
-            local bg = library:create("Frame", {
-                Size = UDim2.new(1, 0, 0, 6),
-                BackgroundColor3 = library.theme.element_bg,
-                BorderSizePixel = 0,
-                Parent = container
-            })
-            local fill = library:create("Frame", {
-                Size = UDim2.new(math.clamp((percent or 0) / 100, 0, 1), 0, 1, 0),
-                BackgroundColor3 = col or library.theme.accent,
-                BorderSizePixel = 0,
-                Parent = bg
-            })
-            return {
-                set = function(p)
-                    fill.Size = UDim2.new(math.clamp(p / 100, 0, 1), 0, 1, 0)
-                end,
-                frame = bg
-            }
-        end
-
         return float_obj
     end
 
-    -- ==============================================================================
-    -- ESP PREVIEW FLOTTANT (hors du menu, déplaçable)
-    -- ==============================================================================
+    -- Floating ESP preview
     function window_obj:esp_preview(options)
         options = options or {}
         local size = options.size or UDim2.new(0, 190, 0, 252)
@@ -921,12 +1246,17 @@ function library:window(cfg)
     end
 
     -- ==============================================================================
-    -- TAB
+    -- TABS (AddTab / tab)
     -- ==============================================================================
+    function window_obj:AddTab(tcfg)
+        return self:tab(tcfg)
+    end
+
     function window_obj:tab(tcfg)
         tcfg = tcfg or {}
-        local tab_name = tcfg.name or tcfg.Name or "Tab"
-        local tab_icon = tcfg.icon or tcfg.Icon or tab_name:sub(1, 1)
+        if type(tcfg) == "string" then tcfg = { name = tcfg } end
+        local tab_name = tcfg.Title or tcfg.name or tcfg.Name or "Tab"
+        local tab_icon = tcfg.Icon or tcfg.icon or tab_name:sub(1, 1)
 
         local tab_btn = library:create("TextButton", {
             Name = "Tab_" .. tab_name,
@@ -965,7 +1295,6 @@ function library:window(cfg)
             })
         end
 
-        -- Page Tab
         local tab_page = library:create("Frame", {
             Name = "Page_" .. tab_name,
             Size = UDim2.new(1, 0, 1, 0),
@@ -978,6 +1307,7 @@ function library:window(cfg)
             Name = "SubTabsBar",
             Size = UDim2.new(1, 0, 0, 20),
             BackgroundTransparency = 1,
+            Visible = false,
             Parent = tab_page
         })
 
@@ -990,8 +1320,8 @@ function library:window(cfg)
 
         local sub_content = library:create("Frame", {
             Name = "SubContent",
-            Size = UDim2.new(1, 0, 1, -24),
-            Position = UDim2.new(0, 0, 0, 24),
+            Size = UDim2.new(1, 0, 1, 0),
+            Position = UDim2.new(0, 0, 0, 0),
             BackgroundTransparency = 1,
             Parent = tab_page
         })
@@ -1038,6 +1368,38 @@ function library:window(cfg)
         tab_obj.icon = icon_label
         tab_btn.MouseButton1Click:Connect(function() tab_obj:select() end)
 
+        -- Helper to get or create default subtab when Obsidian AddLeftGroupbox/AddRightGroupbox is called
+        local function ensure_default_sub()
+            if #tab_obj.subtabs == 0 then
+                local def = tab_obj:subtab({ name = "Main", label = "Main" })
+                def:select()
+                -- Keep subtab bar hidden for single default subtab
+                subtab_bar.Visible = false
+                sub_content.Position = UDim2.new(0, 0, 0, 0)
+                sub_content.Size = UDim2.new(1, 0, 1, 0)
+                return def
+            end
+            return tab_obj.current_sub or tab_obj.subtabs[1]
+        end
+
+        function tab_obj:AddLeftGroupbox(name)
+            local sub = ensure_default_sub()
+            return sub:section({ name = name, side = "left", label = "A" })
+        end
+
+        function tab_obj:AddRightGroupbox(name)
+            local sub = ensure_default_sub()
+            return sub:section({ name = name, side = "right", label = "B" })
+        end
+
+        function tab_obj:AddGroupbox(cfg)
+            cfg = cfg or {}
+            local side = (cfg.Side and cfg.Side:lower()) or "left"
+            local name = cfg.Name or cfg.name or cfg.Title or "Groupbox"
+            local sub = ensure_default_sub()
+            return sub:section({ name = name, side = side, label = (side == "left" and "A" or "B") })
+        end
+
         -- ==============================================================================
         -- SUBTAB
         -- ==============================================================================
@@ -1045,6 +1407,13 @@ function library:window(cfg)
             scfg = scfg or {}
             local sub_name = scfg.name or scfg.Name or "SubTab"
             local sub_label = scfg.label or scfg.Label or sub_name
+
+            -- Show subtab bar if we have multiple or explicit subtabs
+            if #tab_obj.subtabs >= 1 or sub_name ~= "Main" then
+                subtab_bar.Visible = true
+                sub_content.Position = UDim2.new(0, 0, 0, 24)
+                sub_content.Size = UDim2.new(1, 0, 1, -24)
+            end
 
             local sub_btn = library:create("TextButton", {
                 Name = "SubBtn_" .. sub_name,
@@ -1070,7 +1439,6 @@ function library:window(cfg)
                 Parent = sub_btn
             })
 
-            -- Conteneur colonnes A et B
             local sub_view = library:create("Frame", {
                 Name = "View_" .. sub_name,
                 Size = UDim2.new(1, 0, 1, 0),
@@ -1137,22 +1505,20 @@ function library:window(cfg)
                     library:tween(sub_btn, {TextColor3 = Color3.fromRGB(255, 255, 255)}, nil, 0.12)
                 end
             end)
-
             sub_btn.MouseLeave:Connect(function()
                 if not sub_obj.active then
                     library:tween(sub_btn, {TextColor3 = Color3.fromRGB(180, 180, 180)}, nil, 0.12)
                 end
             end)
-
             sub_btn.MouseButton1Click:Connect(function() sub_obj:select() end)
 
             -- ==============================================================================
-            -- SECTION (Groupbox A / B)
+            -- SECTION / GROUPBOX
             -- ==============================================================================
             function sub_obj:section(sec_cfg)
                 sec_cfg = sec_cfg or {}
                 local side = sec_cfg.side or sec_cfg.Side or "left"
-                local sec_name = sec_cfg.name or sec_cfg.Name or "Section"
+                local sec_name = sec_cfg.name or sec_cfg.Name or sec_cfg.Title or "Section"
                 local sec_label = sec_cfg.label or sec_cfg.Label or (side == "left" and "A" or "B")
                 local parent_col = (side == "left" and col_a or col_b)
 
@@ -1211,22 +1577,34 @@ function library:window(cfg)
 
                 local section_obj = { container = scroll, elements = scroll, items = { elements = scroll } }
 
+                -- Helper for normalization of args (Obsidian vs Gamesense)
+                local function parse_args(arg1, arg2)
+                    if type(arg1) == "string" then
+                        local opts = arg2 or {}
+                        return arg1, opts
+                    else
+                        local opts = arg1 or {}
+                        local flag = opts.flag or opts.Flag or opts.name or opts.Name or opts.Text or "Option"
+                        return flag, opts
+                    end
+                end
+
                 -- =====================================================================
-                -- MONOLITH / SKEET TOGGLE
+                -- TOGGLE (AddToggle)
                 -- =====================================================================
-                function section_obj:Toggle(options)
-                    options = options or {}
-                    local text = options.name or options.Name or "Toggle"
-                    local flag = options.flag or options.Flag or text
-                    local default = options.default or options.Default or false
-                    local callback = options.callback or options.Callback or function() end
+                function section_obj:AddToggle(arg1, arg2)
+                    local flag, options = parse_args(arg1, arg2)
+                    local text = options.Text or options.text or options.name or options.Name or flag
+                    local default = options.Default
+                    if default == nil then default = options.default or false end
+                    local callback = options.Callback or options.callback or function() end
 
                     local obj = library:create("TextButton", {
                         Parent = scroll,
                         Text = "",
                         Name = text,
                         BackgroundTransparency = 1,
-                        Size = UDim2.new(1, 0, 0, 14),
+                        Size = UDim2.new(1, 0, 0, 16),
                         BorderSizePixel = 0,
                         AutoButtonColor = false
                     })
@@ -1235,7 +1613,6 @@ function library:window(cfg)
                         Parent = obj,
                         BackgroundTransparency = 1,
                         Name = "Outline",
-                        BorderColor3 = Color3.fromRGB(0, 0, 0),
                         Size = UDim2.new(0, 12, 0, 12),
                         Position = UDim2.new(0, 0, 0.5, -6),
                         BorderSizePixel = 0,
@@ -1247,7 +1624,6 @@ function library:window(cfg)
                         Name = "Shading",
                         BackgroundTransparency = 1,
                         Position = UDim2.new(0, 1, 0, 1),
-                        BorderColor3 = Color3.fromRGB(0, 0, 0),
                         Size = UDim2.new(1, -2, 1, -2),
                         BorderSizePixel = 0,
                         BackgroundColor3 = Color3.fromRGB(92, 92, 92)
@@ -1257,7 +1633,6 @@ function library:window(cfg)
                         Parent = toggle_shading,
                         Name = "Inline",
                         Position = UDim2.new(0, 1, 0, 1),
-                        BorderColor3 = Color3.fromRGB(0, 0, 0),
                         Size = UDim2.new(1, -2, 1, -2),
                         BorderSizePixel = 0,
                         BackgroundColor3 = Color3.fromRGB(54, 54, 54)
@@ -1266,7 +1641,6 @@ function library:window(cfg)
                     local lbl = library:create("TextLabel", {
                         FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.SemiBold, Enum.FontStyle.Normal),
                         TextColor3 = Color3.fromRGB(178, 178, 178),
-                        BorderColor3 = Color3.fromRGB(0, 0, 0),
                         Text = text,
                         Parent = obj,
                         BackgroundTransparency = 1,
@@ -1277,41 +1651,99 @@ function library:window(cfg)
                         TextSize = 11,
                     })
 
+                    local extra_container = library:create("Frame", {
+                        Size = UDim2.new(0, 50, 1, 0),
+                        Position = UDim2.new(1, -50, 0, 0),
+                        BackgroundTransparency = 1,
+                        Parent = obj
+                    })
+                    library:create("UIListLayout", {
+                        FillDirection = Enum.FillDirection.Horizontal,
+                        HorizontalAlignment = Enum.HorizontalAlignment.Right,
+                        VerticalAlignment = Enum.VerticalAlignment.Center,
+                        Padding = UDim.new(0, 4),
+                        Parent = extra_container
+                    })
+
                     local state = false
+                    local toggle_instance = {
+                        Value = default,
+                        Type = "Toggle",
+                        ChangedCallbacks = {},
+                    }
+
                     local function set(bool)
                         state = bool
+                        toggle_instance.Value = bool
                         library:tween(lbl, {TextColor3 = bool and Color3.fromRGB(255, 255, 255) or Color3.fromRGB(178, 178, 178)})
                         library:tween(toggle_outline, {BackgroundTransparency = bool and 0 or 1})
                         library:tween(toggle_shading, {BackgroundTransparency = bool and 0 or 1})
                         library:tween(toggle_inline, {BackgroundColor3 = bool and Color3.fromRGB(255, 255, 255) or Color3.fromRGB(74, 74, 74)})
 
                         library.flags[flag] = bool
-                        callback(bool)
+                        pcall(callback, bool)
+                        toggle_instance:RunChanged()
                     end
 
                     obj.MouseButton1Click:Connect(function()
                         set(not state)
                     end)
 
+                    function toggle_instance:SetValue(val)
+                        set(val)
+                    end
+
+                    function toggle_instance:OnChanged(fn)
+                        table.insert(self.ChangedCallbacks, fn)
+                        return {
+                            Disconnect = function()
+                                local idx = table.find(self.ChangedCallbacks, fn)
+                                if idx then table.remove(self.ChangedCallbacks, idx) end
+                            end
+                        }
+                    end
+
+                    function toggle_instance:RunChanged()
+                        for _, fn in ipairs(self.ChangedCallbacks) do
+                            pcall(fn, self.Value)
+                        end
+                    end
+
+                    -- Inline ColorPicker on Toggle
+                    function toggle_instance:AddColorPicker(cp_arg1, cp_arg2)
+                        local cp_flag, cp_opts = parse_args(cp_arg1, cp_arg2)
+                        return section_obj:_create_color_widget(extra_container, cp_flag, cp_opts)
+                    end
+
+                    -- Inline KeyPicker on Toggle
+                    function toggle_instance:AddKeyPicker(kp_arg1, kp_arg2)
+                        local kp_flag, kp_opts = parse_args(kp_arg1, kp_arg2)
+                        return section_obj:_create_key_widget(extra_container, kp_flag, kp_opts)
+                    end
+
                     set(default)
-                    library.config_flags[flag] = set
-                    return { set = set }
+                    library.Toggles[flag] = toggle_instance
+                    library.Options[flag] = toggle_instance
+                    library.config_flags[flag] = function(v) toggle_instance:SetValue(v) end
+
+                    return toggle_instance
                 end
-                section_obj.toggle = section_obj.Toggle
+                section_obj.Toggle = section_obj.AddToggle
+                section_obj.toggle = section_obj.AddToggle
 
                 -- =====================================================================
-                -- MONOLITH / SKEET SLIDER
+                -- SLIDER (AddSlider)
                 -- =====================================================================
-                function section_obj:Slider(options)
-                    options = options or {}
-                    local text = options.name or options.Name or "Slider"
-                    local suffix = options.suffix or options.Suffix or ""
-                    local flag = options.flag or options.Flag or text
-                    local callback = options.callback or options.Callback or function() end
-                    local min = options.min or options.minimum or options.Min or options.Minimum or 0
-                    local max = options.max or options.maximum or options.Max or options.Maximum or 100
-                    local intervals = options.interval or options.decimal or options.Interval or options.Decimal or 1
-                    local default = options.default or options.Default or min
+                function section_obj:AddSlider(arg1, arg2)
+                    local flag, options = parse_args(arg1, arg2)
+                    local text = options.Text or options.text or options.name or options.Name or flag
+                    local suffix = options.Suffix or options.suffix or ""
+                    local callback = options.Callback or options.callback or function() end
+                    local min = options.Min or options.min or options.minimum or 0
+                    local max = options.Max or options.max or options.maximum or 100
+                    local intervals = options.Rounding or options.interval or options.decimal or 1
+                    local default = options.Default
+                    if default == nil then default = options.default or min end
                     local value = default
 
                     local holder = library:create("Frame", {
@@ -1406,13 +1838,21 @@ function library:window(cfg)
                         ZIndex = 4,
                     })
 
+                    local slider_instance = {
+                        Value = default,
+                        Type = "Slider",
+                        ChangedCallbacks = {},
+                    }
+
                     local function set(v)
-                        value = math.clamp(library:round(v, intervals), min, max)
-                        local pct = (value - min) / (max - min)
+                        value = math.clamp(library:round(tonumber(v) or min, intervals), min, max)
+                        slider_instance.Value = value
+                        local pct = (max == min and 0 or (value - min) / (max - min))
                         slider_thumb.Position = UDim2.new(pct, 0, 0.5, 0)
                         val_lbl.Text = tostring(value) .. suffix
                         library.flags[flag] = value
-                        callback(value)
+                        pcall(callback, value)
+                        slider_instance:RunChanged()
                     end
 
                     local dragging = false
@@ -1437,24 +1877,46 @@ function library:window(cfg)
                         end
                     end)
 
+                    function slider_instance:SetValue(v)
+                        set(v)
+                    end
+
+                    function slider_instance:OnChanged(fn)
+                        table.insert(self.ChangedCallbacks, fn)
+                        return {
+                            Disconnect = function()
+                                local idx = table.find(self.ChangedCallbacks, fn)
+                                if idx then table.remove(self.ChangedCallbacks, idx) end
+                            end
+                        }
+                    end
+
+                    function slider_instance:RunChanged()
+                        for _, fn in ipairs(self.ChangedCallbacks) do
+                            pcall(fn, self.Value)
+                        end
+                    end
+
                     set(default)
-                    library.config_flags[flag] = set
-                    return { set = set }
+                    library.Options[flag] = slider_instance
+                    library.config_flags[flag] = function(v) slider_instance:SetValue(v) end
+
+                    return slider_instance
                 end
-                section_obj.slider = section_obj.Slider
+                section_obj.Slider = section_obj.AddSlider
+                section_obj.slider = section_obj.AddSlider
 
                 -- =====================================================================
-                -- MONOLITH / SKEET DROPDOWN
+                -- DROPDOWN (AddDropdown)
                 -- =====================================================================
-                function section_obj:Dropdown(options)
-                    options = options or {}
-                    local text = options.name or options.Name or "Dropdown"
-                    local flag = options.flag or options.Flag or text
-                    local items_list = options.items or options.Items or {"1", "2", "3"}
-                    local callback = options.callback or options.Callback or function() end
-                    local multi = options.multi or options.Multi or false
+                function section_obj:AddDropdown(arg1, arg2)
+                    local flag, options = parse_args(arg1, arg2)
+                    local text = options.Text or options.text or options.name or options.Name or flag
+                    local items_list = options.Values or options.values or options.items or options.Items or {}
+                    local callback = options.Callback or options.callback or function() end
+                    local multi = options.Multi or options.multi or false
 
-                    local default = options.default or options.Default or (multi and {items_list[1]}) or items_list[1] or "None"
+                    local default = options.Default or options.default or (multi and {items_list[1]} or items_list[1] or "None")
                     local open = false
                     local option_instances = {}
                     local multi_items = {}
@@ -1571,6 +2033,14 @@ function library:window(cfg)
                         Parent = pop_shading
                     })
 
+                    local dropdown_instance = {
+                        Value = default,
+                        Values = items_list,
+                        Multi = multi,
+                        Type = "Dropdown",
+                        ChangedCallbacks = {},
+                    }
+
                     local function set_visible(bool)
                         open = bool
                         dropdown_holder.Visible = bool
@@ -1595,12 +2065,17 @@ function library:window(cfg)
                             end
                         end
 
-                        inner_text.Text = if isTable then table.concat(selected, ", ") else (selected[1] or tostring(value))
-                        library.flags[flag] = if isTable then selected else selected[1]
-                        callback(library.flags[flag])
+                        local res = if isTable then selected else (selected[1] or tostring(value))
+                        inner_text.Text = if isTable then table.concat(selected, ", ") else tostring(res)
+                        dropdown_instance.Value = res
+                        library.flags[flag] = res
+                        pcall(callback, res)
+                        dropdown_instance:RunChanged()
                     end
 
                     local function refresh_options(list)
+                        list = list or {}
+                        dropdown_instance.Values = list
                         for _, opt in ipairs(option_instances) do opt:Destroy() end
                         option_instances = {}
 
@@ -1648,21 +2123,411 @@ function library:window(cfg)
                         end
                     end)
 
+                    function dropdown_instance:SetValue(val)
+                        set(val)
+                    end
+
+                    function dropdown_instance:SetValues(list)
+                        refresh_options(list)
+                    end
+
+                    function dropdown_instance:OnChanged(fn)
+                        table.insert(self.ChangedCallbacks, fn)
+                        return {
+                            Disconnect = function()
+                                local idx = table.find(self.ChangedCallbacks, fn)
+                                if idx then table.remove(self.ChangedCallbacks, idx) end
+                            end
+                        }
+                    end
+
+                    function dropdown_instance:RunChanged()
+                        for _, fn in ipairs(self.ChangedCallbacks) do
+                            pcall(fn, self.Value)
+                        end
+                    end
+
                     refresh_options(items_list)
                     set(default)
-                    library.config_flags[flag] = set
+                    library.Options[flag] = dropdown_instance
+                    library.config_flags[flag] = function(v) dropdown_instance:SetValue(v) end
 
-                    return { set = set, refresh = refresh_options }
+                    return dropdown_instance
                 end
-                section_obj.dropdown = section_obj.Dropdown
+                section_obj.Dropdown = section_obj.AddDropdown
+                section_obj.dropdown = section_obj.AddDropdown
 
                 -- =====================================================================
-                -- BUTTON
+                -- COLORPICKER (AddColorPicker)
                 -- =====================================================================
-                function section_obj:Button(options)
-                    options = options or {}
-                    local text = options.name or options.Name or "Button"
-                    local callback = options.callback or options.Callback or function() end
+                function section_obj:_create_color_widget(parent_frame, flag, options)
+                    local default_col = options.Default or options.default or options.color or options.Color or Color3.fromRGB(0, 215, 165)
+                    local callback = options.Callback or options.callback or function() end
+
+                    local col_btn = library:create("TextButton", {
+                        Parent = parent_frame,
+                        Size = UDim2.new(0, 18, 0, 10),
+                        BackgroundColor3 = default_col,
+                        BorderSizePixel = 0,
+                        Text = "",
+                        AutoButtonColor = false,
+                    })
+                    make_corner(col_btn, 2)
+                    make_stroke(col_btn, library.theme.border, 1)
+
+                    local current_col = default_col
+                    local current_alpha = 0
+                    local cp_instance = {
+                        Value = default_col,
+                        Transparency = 0,
+                        Type = "ColorPicker",
+                        ChangedCallbacks = {},
+                    }
+
+                    local function set(c, alpha)
+                        current_col = c
+                        current_alpha = alpha or 0
+                        cp_instance.Value = c
+                        cp_instance.Transparency = current_alpha
+                        col_btn.BackgroundColor3 = c
+                        library.flags[flag] = c
+                        pcall(callback, c, current_alpha)
+                        cp_instance:RunChanged()
+                    end
+
+                    function cp_instance:SetValue(c)
+                        set(c, current_alpha)
+                    end
+
+                    function cp_instance:SetValueRGB(c, alpha)
+                        set(c, alpha)
+                    end
+
+                    function cp_instance:ToHex()
+                        return cp_instance.Value:ToHex()
+                    end
+
+                    function cp_instance:OnChanged(fn)
+                        table.insert(self.ChangedCallbacks, fn)
+                        return {
+                            Disconnect = function()
+                                local idx = table.find(self.ChangedCallbacks, fn)
+                                if idx then table.remove(self.ChangedCallbacks, idx) end
+                            end
+                        }
+                    end
+
+                    function cp_instance:RunChanged()
+                        for _, fn in ipairs(self.ChangedCallbacks) do
+                            pcall(fn, self.Value, self.Transparency)
+                        end
+                    end
+
+                    -- Modal Color Picker simple & rapide
+                    col_btn.MouseButton1Click:Connect(function()
+                        local modal = library.Window:AddDialog("ColorPicker_" .. flag, {
+                            Title = "Color Picker: " .. flag,
+                            Description = "Current Hex: #" .. current_col:ToHex(),
+                            FooterButtons = {
+                                Close = {
+                                    Title = "Done",
+                                    Variant = "Ghost",
+                                    Callback = function(d) d:Dismiss() end
+                                }
+                            }
+                        })
+                    end)
+
+                    set(default_col)
+                    library.Options[flag] = cp_instance
+                    library.config_flags[flag] = function(v) cp_instance:SetValue(v) end
+                    return cp_instance
+                end
+
+                function section_obj:AddColorPicker(arg1, arg2)
+                    local flag, options = parse_args(arg1, arg2)
+                    local text = options.Title or options.title or options.Text or options.text or options.name or options.Name or flag
+
+                    local holder = library:create("Frame", {
+                        Parent = scroll,
+                        Size = UDim2.new(1, 0, 0, 16),
+                        BackgroundTransparency = 1,
+                    })
+
+                    library:create("TextLabel", {
+                        FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.SemiBold, Enum.FontStyle.Normal),
+                        TextColor3 = Color3.fromRGB(178, 178, 178),
+                        Text = text,
+                        Parent = holder,
+                        BackgroundTransparency = 1,
+                        Size = UDim2.new(1, -24, 1, 0),
+                        TextSize = 11,
+                        TextXAlignment = Enum.TextXAlignment.Left,
+                    })
+
+                    local extra_box = library:create("Frame", {
+                        Size = UDim2.new(0, 24, 1, 0),
+                        Position = UDim2.new(1, -24, 0, 0),
+                        BackgroundTransparency = 1,
+                        Parent = holder
+                    })
+                    library:create("UIListLayout", {
+                        HorizontalAlignment = Enum.HorizontalAlignment.Right,
+                        VerticalAlignment = Enum.VerticalAlignment.Center,
+                        Parent = extra_box
+                    })
+
+                    return section_obj:_create_color_widget(extra_box, flag, options)
+                end
+                section_obj.Colorpicker = section_obj.AddColorPicker
+                section_obj.colorpicker = section_obj.AddColorPicker
+
+                -- =====================================================================
+                -- KEYPICKER (AddKeyPicker / Keybind)
+                -- =====================================================================
+                function section_obj:_create_key_widget(parent_frame, flag, options)
+                    local raw_def = options.Default or options.default or options.key or options.Key or "None"
+                    local default_key = raw_def
+                    if typeof(raw_def) == "string" and Enum.KeyCode[raw_def] then
+                        default_key = Enum.KeyCode[raw_def]
+                    elseif typeof(raw_def) ~= "EnumItem" then
+                        default_key = Enum.KeyCode.E
+                    end
+
+                    local mode = options.Mode or options.mode or "Toggle"
+                    local callback = options.Callback or options.callback or function() end
+
+                    local btn = library:create("TextButton", {
+                        Parent = parent_frame,
+                        Size = UDim2.new(0, 36, 0, 14),
+                        BackgroundColor3 = library.theme.element_bg,
+                        BorderSizePixel = 0,
+                        Font = Enum.Font.SourceSansBold,
+                        Text = "[" .. default_key.Name .. "]",
+                        TextColor3 = Color3.fromRGB(178, 178, 178),
+                        TextSize = 10,
+                        AutoButtonColor = false,
+                    })
+                    make_corner(btn, 2)
+                    make_stroke(btn, library.theme.border_dark, 1)
+
+                    local current_key = default_key
+                    local listening = false
+                    local kp_instance = {
+                        Value = default_key.Name,
+                        Mode = mode,
+                        Toggled = false,
+                        Type = "KeyPicker",
+                        ChangedCallbacks = {},
+                    }
+
+                    local function set(k)
+                        if typeof(k) == "table" then
+                            k = k[1]
+                        end
+                        if typeof(k) == "string" and Enum.KeyCode[k] then
+                            current_key = Enum.KeyCode[k]
+                        elseif typeof(k) == "EnumItem" then
+                            current_key = k
+                        end
+                        kp_instance.Value = current_key.Name
+                        btn.Text = "[" .. current_key.Name .. "]"
+                        library.flags[flag] = current_key.Name
+                        pcall(callback, current_key)
+                        kp_instance:RunChanged()
+                    end
+
+                    btn.MouseButton1Click:Connect(function()
+                        listening = true
+                        btn.Text = "[...]"
+                    end)
+
+                    library:connection(UserInputService.InputBegan, function(input, gpe)
+                        if listening and not gpe and input.UserInputType == Enum.UserInputType.Keyboard then
+                            listening = false
+                            set(input.KeyCode)
+                        elseif not gpe and input.KeyCode == current_key then
+                            kp_instance.Toggled = not kp_instance.Toggled
+                            pcall(callback, kp_instance.Toggled)
+                        end
+                    end)
+
+                    function kp_instance:SetValue(val)
+                        set(val)
+                    end
+
+                    function kp_instance:OnChanged(fn)
+                        table.insert(self.ChangedCallbacks, fn)
+                        return {
+                            Disconnect = function()
+                                local idx = table.find(self.ChangedCallbacks, fn)
+                                if idx then table.remove(self.ChangedCallbacks, idx) end
+                            end
+                        }
+                    end
+
+                    function kp_instance:RunChanged()
+                        for _, fn in ipairs(self.ChangedCallbacks) do
+                            pcall(fn, self.Value)
+                        end
+                    end
+
+                    set(default_key)
+                    library.Options[flag] = kp_instance
+                    return kp_instance
+                end
+
+                function section_obj:AddKeyPicker(arg1, arg2)
+                    local flag, options = parse_args(arg1, arg2)
+                    local text = options.Text or options.text or options.name or options.Name or flag
+
+                    local holder = library:create("Frame", {
+                        Parent = scroll,
+                        Size = UDim2.new(1, 0, 0, 16),
+                        BackgroundTransparency = 1,
+                    })
+
+                    library:create("TextLabel", {
+                        FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.SemiBold, Enum.FontStyle.Normal),
+                        TextColor3 = Color3.fromRGB(178, 178, 178),
+                        Text = text,
+                        Parent = holder,
+                        BackgroundTransparency = 1,
+                        Size = UDim2.new(1, -40, 1, 0),
+                        TextSize = 11,
+                        TextXAlignment = Enum.TextXAlignment.Left,
+                    })
+
+                    local extra_box = library:create("Frame", {
+                        Size = UDim2.new(0, 40, 1, 0),
+                        Position = UDim2.new(1, -40, 0, 0),
+                        BackgroundTransparency = 1,
+                        Parent = holder
+                    })
+                    library:create("UIListLayout", {
+                        HorizontalAlignment = Enum.HorizontalAlignment.Right,
+                        VerticalAlignment = Enum.VerticalAlignment.Center,
+                        Parent = extra_box
+                    })
+
+                    return section_obj:_create_key_widget(extra_box, flag, options)
+                end
+                section_obj.Keybind = section_obj.AddKeyPicker
+                section_obj.keybind = section_obj.AddKeyPicker
+
+                -- =====================================================================
+                -- INPUT (AddInput)
+                -- =====================================================================
+                function section_obj:AddInput(arg1, arg2)
+                    local flag, options = parse_args(arg1, arg2)
+                    local text = options.Text or options.text or options.name or options.Name or flag
+                    local default = options.Default or options.default or ""
+                    local callback = options.Callback or options.callback or function() end
+
+                    local holder = library:create("Frame", {
+                        Parent = scroll,
+                        Name = text,
+                        BackgroundTransparency = 1,
+                        Size = UDim2.new(1, 0, 0, 32),
+                        BorderSizePixel = 0,
+                    })
+
+                    library:create("TextLabel", {
+                        FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.SemiBold, Enum.FontStyle.Normal),
+                        TextColor3 = Color3.fromRGB(178, 178, 178),
+                        Text = text,
+                        Parent = holder,
+                        BackgroundTransparency = 1,
+                        Position = UDim2.new(0, 0, 0, 0),
+                        Size = UDim2.new(1, 0, 0, 11),
+                        BorderSizePixel = 0,
+                        TextSize = 10,
+                        TextXAlignment = Enum.TextXAlignment.Left,
+                    })
+
+                    local input_outline = library:create("Frame", {
+                        Parent = holder,
+                        Position = UDim2.new(0, 0, 0, 13),
+                        Size = UDim2.new(1, 0, 0, 17),
+                        BorderSizePixel = 0,
+                        BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+                    })
+
+                    local input_box = library:create("TextBox", {
+                        Parent = input_outline,
+                        Size = UDim2.new(1, -2, 1, -2),
+                        Position = UDim2.new(0, 1, 0, 1),
+                        BorderSizePixel = 0,
+                        BackgroundColor3 = library.theme.element_bg,
+                        TextColor3 = Color3.fromRGB(255, 255, 255),
+                        PlaceholderColor3 = Color3.fromRGB(100, 100, 100),
+                        PlaceholderText = "...",
+                        Text = default,
+                        ClearTextOnFocus = false,
+                        Font = Enum.Font.SourceSans,
+                        TextSize = 11,
+                    })
+
+                    local input_instance = {
+                        Value = default,
+                        Type = "Input",
+                        ChangedCallbacks = {},
+                    }
+
+                    local function set(t)
+                        t = tostring(t or "")
+                        input_instance.Value = t
+                        input_box.Text = t
+                        library.flags[flag] = t
+                        pcall(callback, t)
+                        input_instance:RunChanged()
+                    end
+
+                    input_box.FocusLost:Connect(function()
+                        set(input_box.Text)
+                    end)
+
+                    function input_instance:SetValue(t)
+                        set(t)
+                    end
+
+                    function input_instance:OnChanged(fn)
+                        table.insert(self.ChangedCallbacks, fn)
+                        return {
+                            Disconnect = function()
+                                local idx = table.find(self.ChangedCallbacks, fn)
+                                if idx then table.remove(self.ChangedCallbacks, idx) end
+                            end
+                        }
+                    end
+
+                    function input_instance:RunChanged()
+                        for _, fn in ipairs(self.ChangedCallbacks) do
+                            pcall(fn, self.Value)
+                        end
+                    end
+
+                    set(default)
+                    library.Options[flag] = input_instance
+                    library.config_flags[flag] = function(v) input_instance:SetValue(v) end
+
+                    return input_instance
+                end
+                section_obj.Input = section_obj.AddInput
+                section_obj.input = section_obj.AddInput
+
+                -- =====================================================================
+                -- BUTTON (AddButton)
+                -- =====================================================================
+                function section_obj:AddButton(arg1, arg2)
+                    local text, callback
+                    if type(arg1) == "table" then
+                        text = arg1.Text or arg1.text or arg1.Name or arg1.name or "Button"
+                        callback = arg1.Func or arg1.func or arg1.Callback or arg1.callback or function() end
+                    else
+                        text = tostring(arg1 or "Button")
+                        callback = arg2 or function() end
+                    end
 
                     local btn = library:create("TextButton", {
                         Parent = scroll,
@@ -1712,24 +2577,28 @@ function library:window(cfg)
                     })
 
                     btn.MouseButton1Click:Connect(function()
-                        callback()
+                        pcall(callback)
                         button_text.TextColor3 = Color3.fromRGB(255, 255, 255)
                         library:tween(button_text, {TextColor3 = Color3.fromRGB(178, 178, 178)})
                     end)
 
                     return btn
                 end
-                section_obj.button = section_obj.Button
+                section_obj.Button = section_obj.AddButton
+                section_obj.button = section_obj.AddButton
 
                 -- =====================================================================
-                -- KEYBIND
+                -- LABEL (AddLabel)
                 -- =====================================================================
-                function section_obj:Keybind(options)
-                    options = options or {}
-                    local text = options.name or options.Name or "Keybind"
-                    local flag = options.flag or options.Flag or text
-                    local default_key = options.key or options.Key or Enum.KeyCode.E
-                    local callback = options.callback or options.Callback or function() end
+                function section_obj:AddLabel(arg1, arg2)
+                    local text = ""
+                    local subtext = nil
+                    if type(arg1) == "table" then
+                        text = arg1.Text or arg1.text or ""
+                    else
+                        text = tostring(arg1 or "")
+                        subtext = arg2
+                    end
 
                     local holder = library:create("Frame", {
                         Parent = scroll,
@@ -1737,118 +2606,90 @@ function library:window(cfg)
                         BackgroundTransparency = 1,
                     })
 
-                    library:create("TextLabel", {
+                    local lbl = library:create("TextLabel", {
                         FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.SemiBold, Enum.FontStyle.Normal),
                         TextColor3 = Color3.fromRGB(178, 178, 178),
                         Text = text,
                         Parent = holder,
                         BackgroundTransparency = 1,
-                        Size = UDim2.new(1, -40, 1, 0),
+                        Size = UDim2.new(1, -60, 1, 0),
+                        BorderSizePixel = 0,
                         TextSize = 11,
                         TextXAlignment = Enum.TextXAlignment.Left,
                     })
 
-                    local btn = library:create("TextButton", {
-                        Parent = holder,
-                        Size = UDim2.new(0, 36, 1, 0),
-                        Position = UDim2.new(1, -36, 0, 0),
-                        BackgroundColor3 = library.theme.element_bg,
-                        BorderSizePixel = 0,
-                        Font = Enum.Font.SourceSansBold,
-                        Text = "[" .. default_key.Name .. "]",
-                        TextColor3 = Color3.fromRGB(178, 178, 178),
-                        TextSize = 10,
-                        AutoButtonColor = false,
+                    local extra_container = library:create("Frame", {
+                        Size = UDim2.new(0, 60, 1, 0),
+                        Position = UDim2.new(1, -60, 0, 0),
+                        BackgroundTransparency = 1,
+                        Parent = holder
                     })
-                    make_corner(btn, 2)
-                    make_stroke(btn, library.theme.border_dark, 1)
+                    library:create("UIListLayout", {
+                        FillDirection = Enum.FillDirection.Horizontal,
+                        HorizontalAlignment = Enum.HorizontalAlignment.Right,
+                        VerticalAlignment = Enum.VerticalAlignment.Center,
+                        Padding = UDim.new(0, 4),
+                        Parent = extra_container
+                    })
 
-                    local current_key = default_key
-                    local listening = false
+                    if subtext and type(subtext) == "string" then
+                        library:create("TextLabel", {
+                            FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal),
+                            TextColor3 = Color3.fromRGB(120, 120, 120),
+                            Text = subtext,
+                            Parent = extra_container,
+                            BackgroundTransparency = 1,
+                            Size = UDim2.new(1, 0, 1, 0),
+                            TextSize = 10,
+                            TextXAlignment = Enum.TextXAlignment.Right,
+                        })
+                    end
 
-                    btn.MouseButton1Click:Connect(function()
-                        listening = true
-                        btn.Text = "[...]"
-                    end)
-
-                    UserInputService.InputBegan:Connect(function(input, gpe)
-                        if listening and not gpe and input.UserInputType == Enum.UserInputType.Keyboard then
-                            listening = false
-                            current_key = input.KeyCode
-                            btn.Text = "[" .. current_key.Name .. "]"
-                            library.flags[flag] = current_key
-                            callback(current_key)
-                        elseif not gpe and input.KeyCode == current_key then
-                            callback(true)
-                        end
-                    end)
-
-                    library.flags[flag] = default_key
-                    return {
-                        set = function(k)
-                            current_key = k
-                            btn.Text = "[" .. k.Name .. "]"
-                        end
+                    local label_instance = {
+                        TextLabel = lbl,
+                        Destroyed = false,
                     }
+
+                    function label_instance:SetText(t)
+                        lbl.Text = tostring(t)
+                    end
+
+                    function label_instance:AddColorPicker(cp_arg1, cp_arg2)
+                        local cp_flag, cp_opts = parse_args(cp_arg1, cp_arg2)
+                        return section_obj:_create_color_widget(extra_container, cp_flag, cp_opts)
+                    end
+
+                    function label_instance:AddKeyPicker(kp_arg1, kp_arg2)
+                        local kp_flag, kp_opts = parse_args(kp_arg1, kp_arg2)
+                        return section_obj:_create_key_widget(extra_container, kp_flag, kp_opts)
+                    end
+
+                    return label_instance
                 end
-                section_obj.keybind = section_obj.Keybind
+                section_obj.Label = section_obj.AddLabel
+                section_obj.label = section_obj.AddLabel
 
                 -- =====================================================================
-                -- COLORPICKER
+                -- DIVIDER (AddDivider)
                 -- =====================================================================
-                function section_obj:Colorpicker(options)
-                    options = options or {}
-                    local text = options.name or options.Name or "Color"
-                    local flag = options.flag or options.Flag or text
-                    local default_col = options.color or options.Color or Color3.fromRGB(0, 215, 165)
-                    local callback = options.callback or options.Callback or function() end
-
-                    local holder = library:create("Frame", {
+                function section_obj:AddDivider()
+                    local d = library:create("Frame", {
                         Parent = scroll,
-                        Size = UDim2.new(1, 0, 0, 16),
+                        Size = UDim2.new(1, 0, 0, 6),
                         BackgroundTransparency = 1,
                     })
-
-                    library:create("TextLabel", {
-                        FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.SemiBold, Enum.FontStyle.Normal),
-                        TextColor3 = Color3.fromRGB(178, 178, 178),
-                        Text = text,
-                        Parent = holder,
-                        BackgroundTransparency = 1,
-                        Size = UDim2.new(1, -24, 1, 0),
-                        TextSize = 11,
-                        TextXAlignment = Enum.TextXAlignment.Left,
-                    })
-
-                    local col_btn = library:create("TextButton", {
-                        Parent = holder,
-                        Size = UDim2.new(0, 18, 0, 10),
-                        Position = UDim2.new(1, -18, 0.5, -5),
-                        BackgroundColor3 = default_col,
+                    library:create("Frame", {
+                        Parent = d,
+                        Size = UDim2.new(1, 0, 0, 1),
+                        Position = UDim2.new(0, 0, 0.5, 0),
+                        BackgroundColor3 = library.theme.border_dark,
                         BorderSizePixel = 0,
-                        Text = "",
-                        AutoButtonColor = false,
                     })
-                    make_corner(col_btn, 2)
-                    make_stroke(col_btn, library.theme.border, 1)
-
-                    local current = default_col
-                    library.flags[flag] = default_col
-
-                    return {
-                        set = function(c)
-                            current = c
-                            col_btn.BackgroundColor3 = c
-                            library.flags[flag] = c
-                            callback(c)
-                        end
-                    }
+                    return d
                 end
-                section_obj.colorpicker = section_obj.Colorpicker
 
                 -- =====================================================================
-                -- ESP PREVIEW (vrai personnage de face : box + skeleton + vie + nom)
-                -- Intégré au menu, ou détaché en fenêtre flottante (options.floating)
+                -- ESP PREVIEW
                 -- =====================================================================
                 function section_obj:ESPPreview(options)
                     options = options or {}
@@ -1868,6 +2709,7 @@ function library:window(cfg)
         end
 
         table.insert(window_obj.tabs, tab_obj)
+        table.insert(library.Tabs, tab_obj)
         if #window_obj.tabs == 1 then
             tab_obj:select()
         end
@@ -1875,7 +2717,692 @@ function library:window(cfg)
         return tab_obj
     end
 
+    -- Menu toggle keybind connection
+    library:connection(UserInputService.InputBegan, function(input, gpe)
+        if not gpe and input.KeyCode == library.ToggleKeybind then
+            library:Toggle()
+        end
+    end)
+
     return window_obj
 end
+
+function library:Toggle(state)
+    if state == nil then
+        state = not (self.screen and self.screen.Enabled)
+    end
+    if self.screen then
+        self.screen.Enabled = state
+    end
+    self.Toggled = state
+end
+
+function library:Unload()
+    self.Unloaded = true
+    for _, conn in ipairs(self.connections) do
+        if conn and conn.Connected then
+            conn:Disconnect()
+        end
+    end
+    if self.screen then
+        self.screen:Destroy()
+    end
+    table.clear(self.Options)
+    table.clear(self.Toggles)
+    table.clear(self.Registry)
+    getgenv().Library = nil
+end
+
+-- ==============================================================================
+-- THEME MANAGER (Obsidian Addon Ported & Embedded)
+-- ==============================================================================
+local ThemeManager = {
+    Library = nil,
+    Folder = "ObsidianLibSettings",
+    AppliedToTab = false,
+    DefaultThemeName = nil,
+    ContrastLabel = nil,
+
+    BuiltInThemes = {
+        ["Default"] = {
+            1,
+            { FontColor = "ffffff", MainColor = "191919", AccentColor = "00d7a5", BackgroundColor = "0f0f0f", OutlineColor = "282828", BackgroundImage = "" },
+        },
+        ["BBot"] = {
+            2,
+            { FontColor = "ffffff", MainColor = "1e1e1e", AccentColor = "7e48a3", BackgroundColor = "232323", OutlineColor = "141414", BackgroundImage = "" },
+        },
+        ["Fatality"] = {
+            3,
+            { FontColor = "ffffff", MainColor = "1e1842", AccentColor = "c50754", BackgroundColor = "191335", OutlineColor = "3c355d", BackgroundImage = "" },
+        },
+        ["Jester"] = {
+            4,
+            { FontColor = "ffffff", MainColor = "242424", AccentColor = "db4467", BackgroundColor = "1c1c1c", OutlineColor = "373737", BackgroundImage = "" },
+        },
+        ["Mint"] = {
+            5,
+            { FontColor = "ffffff", MainColor = "242424", AccentColor = "3db488", BackgroundColor = "1c1c1c", OutlineColor = "373737", BackgroundImage = "" },
+        },
+        ["Tokyo Night"] = {
+            6,
+            { FontColor = "ffffff", MainColor = "191925", AccentColor = "6759b3", BackgroundColor = "16161f", OutlineColor = "323232", BackgroundImage = "" },
+        },
+        ["Ubuntu"] = {
+            7,
+            { FontColor = "ffffff", MainColor = "3e3e3e", AccentColor = "e2581e", BackgroundColor = "323232", OutlineColor = "191919", BackgroundImage = "" },
+        },
+        ["Quartz"] = {
+            8,
+            { FontColor = "ffffff", MainColor = "232330", AccentColor = "426e87", BackgroundColor = "1d1b26", OutlineColor = "27232f", BackgroundImage = "" },
+        },
+        ["Nord"] = {
+            9,
+            { FontColor = "eceff4", MainColor = "3b4252", AccentColor = "88c0d0", BackgroundColor = "2e3440", OutlineColor = "4c566a", BackgroundImage = "" },
+        },
+        ["Dracula"] = {
+            10,
+            { FontColor = "f8f8f2", MainColor = "44475a", AccentColor = "ff79c6", BackgroundColor = "282a36", OutlineColor = "6272a4", BackgroundImage = "" },
+        },
+        ["Monokai"] = {
+            11,
+            { FontColor = "f8f8f2", MainColor = "272822", AccentColor = "f92672", BackgroundColor = "1e1f1c", OutlineColor = "49483e", BackgroundImage = "" },
+        },
+        ["Gruvbox"] = {
+            12,
+            { FontColor = "ebdbb2", MainColor = "3c3836", AccentColor = "fb4934", BackgroundColor = "282828", OutlineColor = "504945", BackgroundImage = "" },
+        },
+        ["Solarized"] = {
+            13,
+            { FontColor = "839496", MainColor = "073642", AccentColor = "cb4b16", BackgroundColor = "002b36", OutlineColor = "586e75", BackgroundImage = "" },
+        },
+        ["Catppuccin"] = {
+            14,
+            { FontColor = "d9e0ee", MainColor = "302d41", AccentColor = "f5c2e7", BackgroundColor = "1e1e2e", OutlineColor = "575268", BackgroundImage = "" },
+        },
+        ["One Dark"] = {
+            15,
+            { FontColor = "abb2bf", MainColor = "282c34", AccentColor = "c678dd", BackgroundColor = "21252b", OutlineColor = "5c6370", BackgroundImage = "" },
+        },
+        ["Cyberpunk"] = {
+            16,
+            { FontColor = "f9f9f9", MainColor = "262335", AccentColor = "00ff9f", BackgroundColor = "1a1a2e", OutlineColor = "413c5e", BackgroundImage = "" },
+        },
+        ["Oceanic Next"] = {
+            17,
+            { FontColor = "d8dee9", MainColor = "1b2b34", AccentColor = "6699cc", BackgroundColor = "16232a", OutlineColor = "343d46", BackgroundImage = "" },
+        },
+        ["Material"] = {
+            18,
+            { FontColor = "eeffff", MainColor = "212121", AccentColor = "82aaff", BackgroundColor = "151515", OutlineColor = "424242", BackgroundImage = "" },
+        }
+    }
+}
+
+function ThemeManager:SetLibrary(Lib)
+    ThemeManager.Library = Lib or library
+end
+
+function ThemeManager:SetFolder(folder)
+    ThemeManager.Folder = folder or "ObsidianLibSettings"
+    pcall(makefolder, ThemeManager.Folder)
+    pcall(makefolder, ThemeManager.Folder .. "/themes")
+end
+
+local function GetThemePath(name)
+    return string.format("%s/themes/%s.json", ThemeManager.Folder, name)
+end
+
+local function GetDefaultThemePath()
+    return string.format("%s/themes/default.txt", ThemeManager.Folder)
+end
+
+function ThemeManager:GetDefaultTheme()
+    local path = GetDefaultThemePath()
+    if not isfile(path) then return "Default", false, "Not set" end
+    local ok, content = pcall(readfile, path)
+    if ok and content ~= "" then
+        return content, true
+    end
+    return "Default", false
+end
+
+function ThemeManager:SaveDefault(name)
+    pcall(makefolder, ThemeManager.Folder .. "/themes")
+    pcall(writefile, GetDefaultThemePath(), name)
+    ThemeManager.DefaultThemeName = name
+end
+
+function ThemeManager:ReloadCustomThemes()
+    local themes_path = ThemeManager.Folder .. "/themes"
+    pcall(makefolder, themes_path)
+    local ok, files = pcall(listfiles, themes_path)
+    if not ok or type(files) ~= "table" then return {} end
+    local list = {}
+    for _, f in ipairs(files) do
+        local name = f:match("([^/\\]+)%.json$")
+        if name and name ~= "default" then
+            table.insert(list, name)
+        end
+    end
+    return list
+end
+
+function ThemeManager:GetCustomTheme(name)
+    local path = GetThemePath(name)
+    if not isfile(path) then return nil end
+    local ok, content = pcall(readfile, path)
+    if not ok then return nil end
+    local ok_dec, decoded = pcall(HttpService.JSONDecode, HttpService, content)
+    if ok_dec and type(decoded) == "table" then
+        return decoded
+    end
+    return nil
+end
+
+function ThemeManager:ApplyThemeData(data)
+    local lib = ThemeManager.Library or library
+    local SchemeIndexes = { "FontColor", "MainColor", "AccentColor", "BackgroundColor", "OutlineColor" }
+
+    for index, val in pairs(data) do
+        local opt = lib.Options[index]
+        if index == "FontFace" then
+            if Enum.Font[val] then lib:SetFont(Enum.Font[val]) end
+        elseif index == "BackgroundImage" then
+            lib:SetBackgroundImage(val)
+        elseif table.find(SchemeIndexes, index) then
+            local ok, col = pcall(Color3.fromHex, val)
+            if ok then
+                lib.Scheme[index] = col
+                if opt and opt.SetValueRGB then
+                    opt:SetValueRGB(col, 0)
+                elseif opt and opt.SetValue then
+                    opt:SetValue(col)
+                end
+            end
+        end
+    end
+    ThemeManager:ThemeUpdate()
+    return true
+end
+
+function ThemeManager:ApplyTheme(name)
+    if not name or name == "" then return false end
+    local custom = ThemeManager:GetCustomTheme(name)
+    if custom then
+        return ThemeManager:ApplyThemeData(custom)
+    end
+    local builtIn = ThemeManager.BuiltInThemes[name]
+    if builtIn then
+        return ThemeManager:ApplyThemeData(builtIn[2])
+    end
+    return false
+end
+
+function ThemeManager:SaveCustomTheme(name)
+    if not name or name == "" then return false end
+    local lib = ThemeManager.Library or library
+    local data = {
+        BackgroundColor = lib.Scheme.BackgroundColor:ToHex(),
+        MainColor = lib.Scheme.MainColor:ToHex(),
+        AccentColor = lib.Scheme.AccentColor:ToHex(),
+        OutlineColor = lib.Scheme.OutlineColor:ToHex(),
+        FontColor = lib.Scheme.FontColor:ToHex(),
+        BackgroundImage = lib.Scheme.BackgroundImage or "",
+    }
+    local ok, encoded = pcall(HttpService.JSONEncode, HttpService, data)
+    if ok then
+        pcall(makefolder, ThemeManager.Folder .. "/themes")
+        pcall(writefile, GetThemePath(name), encoded)
+        return true
+    end
+    return false
+end
+
+function ThemeManager:DeleteCustomTheme(name)
+    local path = GetThemePath(name)
+    if isfile(path) then
+        pcall(delfile, path)
+        return true
+    end
+    return false
+end
+
+function ThemeManager:ThemeUpdate()
+    local lib = ThemeManager.Library or library
+    lib:UpdateTheme()
+end
+
+function ThemeManager:LoadDefault()
+    local def = ThemeManager:GetDefaultTheme()
+    ThemeManager:ApplyTheme(def)
+end
+
+function ThemeManager:CreateGroupBox(tab, icon)
+    return tab:AddGroupbox({
+        Side = "Left",
+        Name = "Themes",
+        IconName = icon or "paintbrush"
+    })
+end
+
+function ThemeManager:CreateThemeManager(groupbox)
+    local lib = ThemeManager.Library or library
+    assert(lib, "Library is not set!")
+
+    local builtInNames = {}
+    for name in pairs(ThemeManager.BuiltInThemes) do
+        table.insert(builtInNames, name)
+    end
+    table.sort(builtInNames)
+
+    groupbox:AddLabel("Background color"):AddColorPicker("BackgroundColor", {
+        Default = lib.Scheme.BackgroundColor,
+        Callback = function(c) lib.Scheme.BackgroundColor = c; ThemeManager:ThemeUpdate() end
+    })
+    groupbox:AddLabel("Main color"):AddColorPicker("MainColor", {
+        Default = lib.Scheme.MainColor,
+        Callback = function(c) lib.Scheme.MainColor = c; ThemeManager:ThemeUpdate() end
+    })
+    groupbox:AddLabel("Accent color"):AddColorPicker("AccentColor", {
+        Default = lib.Scheme.AccentColor,
+        Callback = function(c) lib.Scheme.AccentColor = c; ThemeManager:ThemeUpdate() end
+    })
+    groupbox:AddLabel("Outline color"):AddColorPicker("OutlineColor", {
+        Default = lib.Scheme.OutlineColor,
+        Callback = function(c) lib.Scheme.OutlineColor = c; ThemeManager:ThemeUpdate() end
+    })
+    groupbox:AddLabel("Font color"):AddColorPicker("FontColor", {
+        Default = lib.Scheme.FontColor,
+        Callback = function(c) lib.Scheme.FontColor = c; ThemeManager:ThemeUpdate() end
+    })
+
+    groupbox:AddInput("BackgroundImage", {
+        Text = "Background Image URL",
+        Default = lib.Scheme.BackgroundImage or "",
+        Callback = function(url) lib:SetBackgroundImage(url) end
+    })
+
+    groupbox:AddDivider()
+
+    local themeList = groupbox:AddDropdown("ThemeManager_ThemeList", {
+        Text = "Theme list",
+        Values = builtInNames,
+        Default = "Default",
+        Callback = function(theme)
+            ThemeManager:ApplyTheme(theme)
+        end
+    })
+
+    groupbox:AddButton("Set as default", function()
+        local selected = themeList.Value
+        if selected and selected ~= "" then
+            ThemeManager:SaveDefault(selected)
+            lib:Notify(string.format("Set default theme to %q", selected))
+        end
+    end)
+
+    groupbox:AddDivider()
+
+    local customName = groupbox:AddInput("ThemeManager_CustomThemeName", {
+        Text = "Custom theme name",
+        Default = ""
+    })
+
+    local customList = groupbox:AddDropdown("ThemeManager_CustomThemeList", {
+        Text = "Custom themes",
+        Values = ThemeManager:ReloadCustomThemes(),
+        Default = "None",
+        Callback = function(t)
+            ThemeManager:ApplyTheme(t)
+        end
+    })
+
+    groupbox:AddButton("Save custom theme", function()
+        local name = customName.Value
+        if name and name ~= "" then
+            ThemeManager:SaveCustomTheme(name)
+            customList:SetValues(ThemeManager:ReloadCustomThemes())
+            lib:Notify(string.format("Saved custom theme %q", name))
+        end
+    end)
+
+    groupbox:AddButton("Delete custom theme", function()
+        local selected = customList.Value
+        if selected and selected ~= "" and selected ~= "None" then
+            ThemeManager:DeleteCustomTheme(selected)
+            customList:SetValues(ThemeManager:ReloadCustomThemes())
+            lib:Notify(string.format("Deleted custom theme %q", selected))
+        end
+    end)
+
+    groupbox:AddButton("Refresh theme list", function()
+        customList:SetValues(ThemeManager:ReloadCustomThemes())
+        lib:Notify("Refreshed themes")
+    end)
+
+    ThemeManager.AppliedToTab = true
+    return groupbox
+end
+
+function ThemeManager:ApplyToTab(tab, icon)
+    local gb = ThemeManager:CreateGroupBox(tab, icon)
+    return ThemeManager:CreateThemeManager(gb)
+end
+
+function ThemeManager:ApplyToGroupbox(groupbox)
+    return ThemeManager:CreateThemeManager(groupbox)
+end
+
+-- ==============================================================================
+-- SAVE MANAGER / CONFIG MANAGER (Obsidian Addon Ported & Embedded)
+-- ==============================================================================
+local SaveManager = {
+    Library = nil,
+    Folder = "ObsidianLibSettings",
+    SubFolder = "configs",
+    Ignore = {},
+    IgnoreIndexes = {},
+    AutoloadConfig = nil,
+}
+
+function SaveManager:SetLibrary(Lib)
+    SaveManager.Library = Lib or library
+end
+
+function SaveManager:SetFolder(folder)
+    SaveManager.Folder = folder or "ObsidianLibSettings"
+    pcall(makefolder, SaveManager.Folder)
+end
+
+function SaveManager:SetSubFolder(sub)
+    SaveManager.SubFolder = sub or "configs"
+end
+
+function SaveManager:IgnoreThemeSettings()
+    SaveManager.IgnoreIndexes["BackgroundColor"] = true
+    SaveManager.IgnoreIndexes["MainColor"] = true
+    SaveManager.IgnoreIndexes["AccentColor"] = true
+    SaveManager.IgnoreIndexes["OutlineColor"] = true
+    SaveManager.IgnoreIndexes["FontColor"] = true
+    SaveManager.IgnoreIndexes["FontFace"] = true
+    SaveManager.IgnoreIndexes["BackgroundImage"] = true
+    SaveManager.IgnoreIndexes["ThemeManager_ThemeList"] = true
+    SaveManager.IgnoreIndexes["ThemeManager_CustomThemeName"] = true
+    SaveManager.IgnoreIndexes["ThemeManager_CustomThemeList"] = true
+end
+
+function SaveManager:SetIgnoreIndexes(indexes)
+    for _, idx in ipairs(indexes) do
+        SaveManager.IgnoreIndexes[idx] = true
+    end
+end
+
+local function GetConfigFullPath(name)
+    local basePath = SaveManager.Folder
+    if SaveManager.SubFolder and SaveManager.SubFolder ~= "" then
+        pcall(makefolder, basePath .. "/" .. SaveManager.SubFolder)
+        return string.format("%s/%s/%s.json", basePath, SaveManager.SubFolder, name)
+    end
+    return string.format("%s/%s.json", basePath, name)
+end
+
+local function GetAutoloadFullPath()
+    local basePath = SaveManager.Folder
+    return string.format("%s/autoload.txt", basePath)
+end
+
+function SaveManager:RefreshConfigList()
+    local targetPath = SaveManager.Folder
+    if SaveManager.SubFolder and SaveManager.SubFolder ~= "" then
+        targetPath = targetPath .. "/" .. SaveManager.SubFolder
+    end
+    pcall(makefolder, targetPath)
+    local ok, files = pcall(listfiles, targetPath)
+    if not ok or type(files) ~= "table" then return {} end
+    local list = {}
+    for _, f in ipairs(files) do
+        local name = f:match("([^/\\]+)%.json$")
+        if name and name ~= "autoload" then
+            table.insert(list, name)
+        end
+    end
+    return list
+end
+
+function SaveManager:Save(name)
+    if not name or name == "" then return false, "No name" end
+    local lib = SaveManager.Library or library
+
+    local data = { objects = {} }
+
+    for idx, toggle in pairs(lib.Toggles) do
+        if not SaveManager.IgnoreIndexes[idx] then
+            table.insert(data.objects, {
+                type = "Toggle",
+                idx = idx,
+                value = toggle.Value
+            })
+        end
+    end
+
+    for idx, opt in pairs(lib.Options) do
+        if not SaveManager.IgnoreIndexes[idx] and opt.Type ~= "Toggle" then
+            if opt.Type == "Slider" then
+                table.insert(data.objects, {
+                    type = "Slider",
+                    idx = idx,
+                    value = tostring(opt.Value)
+                })
+            elseif opt.Type == "Dropdown" then
+                table.insert(data.objects, {
+                    type = "Dropdown",
+                    idx = idx,
+                    value = opt.Value,
+                    multi = opt.Multi
+                })
+            elseif opt.Type == "ColorPicker" then
+                table.insert(data.objects, {
+                    type = "ColorPicker",
+                    idx = idx,
+                    value = opt.Value:ToHex(),
+                    transparency = opt.Transparency or 0
+                })
+            elseif opt.Type == "KeyPicker" then
+                table.insert(data.objects, {
+                    type = "KeyPicker",
+                    idx = idx,
+                    key = opt.Value,
+                    mode = opt.Mode or "Toggle",
+                    toggled = opt.Toggled
+                })
+            elseif opt.Type == "Input" then
+                table.insert(data.objects, {
+                    type = "Input",
+                    idx = idx,
+                    text = opt.Value
+                })
+            end
+        end
+    end
+
+    local ok, encoded = pcall(HttpService.JSONEncode, HttpService, data)
+    if ok then
+        pcall(writefile, GetConfigFullPath(name), encoded)
+        return true
+    end
+    return false, "JSON encoding error"
+end
+
+function SaveManager:Load(name)
+    if not name or name == "" then return false, "No name" end
+    local path = GetConfigFullPath(name)
+    if not isfile(path) then return false, "File does not exist" end
+    local ok, content = pcall(readfile, path)
+    if not ok then return false, "Read failed" end
+    local ok_dec, decoded = pcall(HttpService.JSONDecode, HttpService, content)
+    if not ok_dec or type(decoded) ~= "table" then return false, "Decode failed" end
+
+    local lib = SaveManager.Library or library
+    for _, obj in ipairs(decoded.objects or {}) do
+        if not SaveManager.IgnoreIndexes[obj.idx] then
+            local element = (obj.type == "Toggle" and lib.Toggles[obj.idx]) or lib.Options[obj.idx]
+            if element then
+                pcall(function()
+                    if obj.type == "Toggle" then
+                        element:SetValue(obj.value)
+                    elseif obj.type == "Slider" then
+                        element:SetValue(tonumber(obj.value))
+                    elseif obj.type == "Dropdown" then
+                        element:SetValue(obj.value)
+                    elseif obj.type == "ColorPicker" then
+                        element:SetValueRGB(Color3.fromHex(obj.value), obj.transparency or 0)
+                    elseif obj.type == "KeyPicker" then
+                        element:SetValue(obj.key)
+                    elseif obj.type == "Input" then
+                        element:SetValue(obj.text)
+                    end
+                end)
+            end
+        end
+    end
+    return true
+end
+
+function SaveManager:Delete(name)
+    local path = GetConfigFullPath(name)
+    if isfile(path) then
+        pcall(delfile, path)
+        return true
+    end
+    return false
+end
+
+function SaveManager:GetAutoloadConfig()
+    local path = GetAutoloadFullPath()
+    if isfile(path) then
+        local ok, content = pcall(readfile, path)
+        if ok and content ~= "" then
+            return content, true
+        end
+    end
+    return nil, false
+end
+
+function SaveManager:SaveAutoloadConfig(name)
+    pcall(makefolder, SaveManager.Folder)
+    pcall(writefile, GetAutoloadFullPath(), name)
+    SaveManager.AutoloadConfig = name
+end
+
+function SaveManager:DeleteAutoLoadConfig()
+    local path = GetAutoloadFullPath()
+    if isfile(path) then
+        pcall(delfile, path)
+    end
+    SaveManager.AutoloadConfig = nil
+end
+
+function SaveManager:LoadAutoloadConfig()
+    local name, ok = SaveManager:GetAutoloadConfig()
+    if ok and name then
+        SaveManager:Load(name)
+    end
+end
+
+function SaveManager:BuildConfigSection(tab, icon)
+    local lib = SaveManager.Library or library
+    assert(lib, "Library is not set!")
+
+    local configBox = tab:AddGroupbox({
+        Side = "Right",
+        Name = "Configuration",
+        IconName = icon or "folder-cog"
+    })
+
+    local configName = configBox:AddInput("SaveManager_ConfigName", {
+        Text = "Config name",
+        Default = ""
+    })
+
+    local configList = configBox:AddDropdown("SaveManager_ConfigList", {
+        Text = "Config list",
+        Values = SaveManager:RefreshConfigList(),
+        Default = "None"
+    })
+
+    configBox:AddButton("Create config", function()
+        local name = configName.Value
+        if name and name ~= "" then
+            SaveManager:Save(name)
+            configList:SetValues(SaveManager:RefreshConfigList())
+            lib:Notify(string.format("Created config %q", name))
+        end
+    end)
+
+    configBox:AddButton("Load config", function()
+        local selected = configList.Value
+        if selected and selected ~= "" and selected ~= "None" then
+            local ok, err = SaveManager:Load(selected)
+            if ok then
+                lib:Notify(string.format("Loaded config %q", selected))
+            else
+                lib:Notify(string.format("Failed to load config: %s", tostring(err)))
+            end
+        end
+    end)
+
+    configBox:AddButton("Overwrite config", function()
+        local selected = configList.Value
+        if selected and selected ~= "" and selected ~= "None" then
+            SaveManager:Save(selected)
+            lib:Notify(string.format("Overwrote config %q", selected))
+        end
+    end)
+
+    configBox:AddButton("Delete config", function()
+        local selected = configList.Value
+        if selected and selected ~= "" and selected ~= "None" then
+            SaveManager:Delete(selected)
+            configList:SetValues(SaveManager:RefreshConfigList())
+            lib:Notify(string.format("Deleted config %q", selected))
+        end
+    end)
+
+    configBox:AddButton("Refresh list", function()
+        configList:SetValues(SaveManager:RefreshConfigList())
+        lib:Notify("Refreshed configs")
+    end)
+
+    configBox:AddDivider()
+
+    configBox:AddButton("Set as autoload", function()
+        local selected = configList.Value
+        if selected and selected ~= "" and selected ~= "None" then
+            SaveManager:SaveAutoloadConfig(selected)
+            lib:Notify(string.format("Set %q as autoload config", selected))
+        end
+    end)
+
+    configBox:AddButton("Reset autoload", function()
+        SaveManager:DeleteAutoLoadConfig()
+        lib:Notify("Reset autoload config")
+    end)
+
+    return configBox
+end
+
+-- Wire references and globals
+library.ThemeManager = ThemeManager
+library.SaveManager = SaveManager
+library.ConfigManager = SaveManager
+
+ThemeManager:SetLibrary(library)
+SaveManager:SetLibrary(library)
+
+getgenv().Library = library
+getgenv().ThemeManager = ThemeManager
+getgenv().SaveManager = SaveManager
+getgenv().ConfigManager = SaveManager
 
 return library
