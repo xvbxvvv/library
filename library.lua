@@ -111,6 +111,159 @@ local function make_draggable(frame)
 end
 
 -- ==============================================================================
+-- LUCIDE ICON API (identique à Library 5 / Obsidian)
+-- ==============================================================================
+local FetchIcons = false
+local Icons = nil
+
+local function is_valid_custom_icon(icon)
+    return typeof(icon) == "string" and (icon:match("^rbxasset://textures/") or icon:match("roblox%.com/asset/%?id=") or icon:match("^rbxthumb://type="))
+end
+
+local function is_custom_asset_icon(icon, include_asset_id)
+    return typeof(icon) == "string" and (icon:match("^content://") or icon:match("^rbxasset://%x+/") or icon:match("^rbxasset://[^/]+/") or (include_asset_id == true and icon:match("^rbxassetid://")))
+end
+
+function library:GetIcon(icon_name)
+    if not FetchIcons or not Icons then
+        return nil
+    end
+
+    local success, icon = pcall(Icons.GetAsset, icon_name)
+    if not success or not icon then
+        return nil
+    end
+
+    local font_success, font_icon = false, nil
+    if Icons.GetFontAsset then
+        font_success, font_icon = pcall(Icons.GetFontAsset, icon_name)
+    end
+
+    if font_success and font_icon and font_icon.FontFace and font_icon.Text then
+        local merged = table.clone(icon)
+        merged.FontFace = font_icon.FontFace
+        merged.Text = font_icon.Text
+        return merged
+    end
+
+    return icon
+end
+
+function library:GetCustomIcon(icon_name)
+    if not icon_name then
+        return nil
+    end
+
+    if tonumber(icon_name) then
+        icon_name = string.format("rbxassetid://%s", tostring(icon_name))
+    end
+
+    if is_custom_asset_icon(icon_name, true) then
+        return {
+            Url = icon_name,
+            ImageRectOffset = Vector2.zero,
+            ImageRectSize = Vector2.zero,
+        }
+    elseif is_valid_custom_icon(icon_name) then
+        return {
+            Url = icon_name,
+            ImageRectOffset = Vector2.zero,
+            ImageRectSize = Vector2.zero,
+            Custom = true,
+        }
+    end
+
+    return library:GetIcon(icon_name)
+end
+
+function library:ApplyIcon(image_gui, icon, rotation)
+    if not image_gui or not icon then
+        return
+    end
+
+    if not (image_gui:IsA("ImageLabel") or image_gui:IsA("ImageButton")) then
+        return
+    end
+
+    image_gui.Rotation = rotation or image_gui.Rotation
+
+    local font_label = image_gui:FindFirstChild("__IconFont")
+    if icon.FontFace and icon.Text then
+        if not font_label then
+            font_label = library:create("TextLabel", {
+                Name = "__IconFont",
+                BackgroundTransparency = 1,
+                Size = UDim2.fromScale(1, 1),
+                RichText = false,
+                TextScaled = false,
+                TextXAlignment = Enum.TextXAlignment.Center,
+                TextYAlignment = Enum.TextYAlignment.Center,
+                Parent = image_gui,
+            })
+
+            local function sync_label()
+                if not font_label.Parent then return end
+                font_label.TextColor3 = image_gui.ImageColor3
+                font_label.TextTransparency = image_gui.ImageTransparency
+            end
+
+            local function sync_size()
+                if not font_label.Parent then return end
+                local absolute = image_gui.AbsoluteSize
+                local side = math.min(absolute.X, absolute.Y)
+                font_label.TextSize = math.max(1, math.floor(side + 0.5))
+            end
+
+            sync_label()
+            sync_size()
+
+            image_gui:GetPropertyChangedSignal("ImageColor3"):Connect(sync_label)
+            image_gui:GetPropertyChangedSignal("ImageTransparency"):Connect(sync_label)
+            image_gui:GetPropertyChangedSignal("AbsoluteSize"):Connect(sync_size)
+        end
+
+        font_label.FontFace = icon.FontFace
+        font_label.Text = icon.Text
+        font_label.TextScaled = false
+        font_label.TextWrapped = false
+        font_label.TextXAlignment = Enum.TextXAlignment.Center
+        font_label.TextYAlignment = Enum.TextYAlignment.Center
+        font_label.TextColor3 = image_gui.ImageColor3
+        font_label.TextTransparency = image_gui.ImageTransparency
+
+        local absolute = image_gui.AbsoluteSize
+        local side = math.min(absolute.X, absolute.Y)
+        if side > 0 then
+            font_label.TextSize = math.max(1, math.floor(side + 0.5))
+        else
+            font_label.TextSize = math.max(1, math.floor(math.min(image_gui.Size.X.Offset, image_gui.Size.Y.Offset) + 0.5))
+        end
+
+        font_label.Visible = true
+        image_gui.ClipsDescendants = true
+        image_gui.Image = ""
+        return
+    end
+
+    if font_label then
+        font_label:Destroy()
+    end
+
+    image_gui.Image = icon.Url or image_gui.Image
+    image_gui.ImageRectOffset = icon.ImageRectOffset or image_gui.ImageRectOffset
+    image_gui.ImageRectSize = icon.ImageRectSize or image_gui.ImageRectSize
+end
+
+-- Récupération en ligne du module d'icônes Lucide
+local icons_ok, icons_module = pcall(function()
+    return (loadstring(game:HttpGet("https://raw.githubusercontent.com/notpoiu/lucide-roblox-direct/refs/heads/main/source.lua")))()
+end)
+if icons_ok and icons_module then
+    FetchIcons = true
+    Icons = icons_module
+end
+
+-- ==============================================================================
 -- WINDOW
 -- ==============================================================================
 function library:window(cfg)
@@ -372,22 +525,23 @@ function library:window(cfg)
         local stroke = make_stroke(tab_btn, library.theme.border_dark, 1)
         stroke.Enabled = false
 
+        local parsed_icon = library:GetCustomIcon(tab_icon)
         local icon_label
-        if tostring(tab_icon):find("rbxassetid") or tostring(tab_icon):find("http") then
+        if parsed_icon then
             icon_label = library:create("ImageLabel", {
                 Size = UDim2.new(0, 18, 0, 18),
                 Position = UDim2.new(0.5, -9, 0.5, -9),
                 BackgroundTransparency = 1,
-                Image = tab_icon,
                 ImageColor3 = library.theme.text_dark,
                 Parent = tab_btn
             })
+            library:ApplyIcon(icon_label, parsed_icon)
         else
             icon_label = library:create("TextLabel", {
                 Size = UDim2.new(1, 0, 1, 0),
                 BackgroundTransparency = 1,
                 Font = Enum.Font.SourceSansBold,
-                Text = tab_icon,
+                Text = tostring(tab_icon):sub(1, 1),
                 TextColor3 = library.theme.text_dark,
                 TextSize = 16,
                 Parent = tab_btn
@@ -428,6 +582,7 @@ function library:window(cfg)
         local tab_obj = {
             name = tab_name,
             btn = tab_btn,
+            stroke = stroke,
             page = tab_page,
             subtab_bar = subtab_bar,
             sub_content = sub_content,
@@ -440,7 +595,7 @@ function library:window(cfg)
                 local prev = window_obj.current_tab
                 prev.page.Visible = false
                 prev.btn.BackgroundColor3 = library.theme.main_bg
-                stroke.Enabled = false
+                if prev.stroke then prev.stroke.Enabled = false end
                 if prev.icon.ClassName == "ImageLabel" then
                     prev.icon.ImageColor3 = library.theme.text_dark
                 else
