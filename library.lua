@@ -264,6 +264,223 @@ if icons_ok and icons_module then
 end
 
 -- ==============================================================================
+-- ESP PREVIEW BUILDER
+-- Rend le VRAI personnage du joueur (de face) + box + skeleton + vie + nom.
+-- Utilisé à la fois en mode "intégré au menu" et "fenêtre flottante".
+-- ==============================================================================
+local ESP_BONES_R15 = {
+    {"Head", "UpperTorso"},
+    {"UpperTorso", "LowerTorso"},
+    {"UpperTorso", "LeftUpperArm"}, {"LeftUpperArm", "LeftLowerArm"}, {"LeftLowerArm", "LeftHand"},
+    {"UpperTorso", "RightUpperArm"}, {"RightUpperArm", "RightLowerArm"}, {"RightLowerArm", "RightHand"},
+    {"LowerTorso", "LeftUpperLeg"}, {"LeftUpperLeg", "LeftLowerLeg"}, {"LeftLowerLeg", "LeftFoot"},
+    {"LowerTorso", "RightUpperLeg"}, {"RightUpperLeg", "RightLowerLeg"}, {"RightLowerLeg", "RightFoot"},
+}
+
+local ESP_BONES_R6 = {
+    {"Head", "Torso"},
+    {"Torso", "Left Arm"}, {"Torso", "Right Arm"},
+    {"Torso", "Left Leg"}, {"Torso", "Right Leg"},
+}
+
+function library:BuildESPPreview(parent, options)
+    options = options or {}
+    local height = options.height or 200
+    local esp_color = options.color or options.Color or library.theme.accent
+    local player_name = options.player or options.Player or (LocalPlayer.Name or "Player")
+
+    local show_char = options.character
+    if show_char == nil then show_char = true end
+    local show_box = options.box
+    if show_box == nil then show_box = true end
+    local show_skel = options.skeleton
+    if show_skel == nil then show_skel = true end
+    local show_health = options.health
+    if show_health == nil then show_health = true end
+    local show_name = options.nametag
+    if show_name == nil then show_name = true end
+
+    local holder = library:create("Frame", {
+        Parent = parent,
+        Name = "ESPPreview",
+        Size = UDim2.new(1, 0, 0, height),
+        BackgroundColor3 = Color3.fromRGB(11, 11, 11),
+        BorderSizePixel = 0,
+    })
+    make_corner(holder, 3)
+    make_stroke(holder, library.theme.border_dark, 1)
+
+    -- ViewportFrame : c'est ici qu'est rendu le personnage
+    local viewport = library:create("ViewportFrame", {
+        Name = "CharacterView",
+        Size = UDim2.new(1, 0, 1, 0),
+        BackgroundTransparency = 1,
+        BorderSizePixel = 0,
+        LightColor = Color3.fromRGB(255, 255, 255),
+        LightDirection = Vector3.new(-1, -1, -1),
+        Ambient = Color3.fromRGB(150, 150, 150),
+        Parent = holder,
+    })
+    make_corner(viewport, 3)
+
+    local view_cam = Instance.new("Camera")
+    view_cam.FieldOfView = 40
+    viewport.CurrentCamera = view_cam
+    view_cam.Parent = viewport
+
+    -- Boîte englobante 2D
+    local box = library:create("Frame", {
+        Name = "Box",
+        AnchorPoint = Vector2.new(0.5, 0.5),
+        Position = UDim2.new(0.5, 0, 0.5, 2),
+        Size = UDim2.new(0.42, 0, 0.85, 0),
+        BackgroundTransparency = 1,
+        Visible = show_box,
+        ZIndex = 3,
+        Parent = holder,
+    })
+    local box_stroke = make_stroke(box, esp_color, 1)
+
+    -- Barre de vie
+    local health_bg = library:create("Frame", {
+        Name = "Health",
+        AnchorPoint = Vector2.new(1, 0.5),
+        Position = UDim2.new(0.29, -3, 0.5, 2),
+        Size = UDim2.new(0, 3, 0.85, 0),
+        BackgroundColor3 = Color3.fromRGB(30, 30, 30),
+        BorderSizePixel = 0,
+        Visible = show_health,
+        ZIndex = 3,
+        Parent = holder,
+    })
+    local health_fill = library:create("Frame", {
+        Size = UDim2.new(1, 0, 1, 0),
+        BackgroundColor3 = Color3.fromRGB(90, 220, 120),
+        BorderSizePixel = 0,
+        ZIndex = 4,
+        Parent = health_bg,
+    })
+
+    -- Nom
+    local name_label = library:create("TextLabel", {
+        Name = "NameTag",
+        AnchorPoint = Vector2.new(0.5, 0),
+        Position = UDim2.new(0.5, 0, 0, 3),
+        Size = UDim2.new(1, -16, 0, 14),
+        BackgroundTransparency = 1,
+        Font = Enum.Font.SourceSansBold,
+        Text = player_name,
+        TextColor3 = Color3.fromRGB(255, 255, 255),
+        TextSize = 11,
+        TextStrokeTransparency = 0.4,
+        TextStrokeColor3 = Color3.fromRGB(0, 0, 0),
+        ZIndex = 4,
+        Visible = show_name,
+        Parent = holder,
+    })
+
+    local function clear_view()
+        for _, child in viewport:GetChildren() do
+            if child:IsA("Model") or child:IsA("BasePart") then
+                child:Destroy()
+            end
+        end
+    end
+
+    local function render()
+        clear_view()
+        if not show_char then return end
+
+        local char = LocalPlayer.Character
+        if not char then return end
+
+        local ok, clone = pcall(function() return char:Clone() end)
+        if not (ok and clone) then return end
+
+        for _, d in clone:GetDescendants() do
+            if d:IsA("Script") or d:IsA("LocalScript") or d:IsA("ModuleScript") then
+                d:Destroy()
+            elseif d:IsA("BasePart") then
+                d.CanCollide = false
+                d.Anchored = true
+                d.LocalTransparencyModifier = 0
+                d.Transparency = math.max(d.Transparency, 0.5)
+            end
+        end
+
+        clone.Parent = viewport
+
+        -- On centre le personnage sur l'origine puis on place la caméra face à lui.
+        local bsize = Vector3.new(2, 5, 1)
+        pcall(function()
+            clone:PivotTo(CFrame.new(0, 0, 0))
+            local bcf, size = clone:GetBoundingBox()
+            bsize = size
+            clone:PivotTo(CFrame.new(-bcf.Position))
+        end)
+
+        local dist = (bsize.Y * 0.5) / math.tan(math.rad(view_cam.FieldOfView * 0.5)) * 1.18
+        view_cam.CFrame = CFrame.lookAt(Vector3.new(0, 0, -dist), Vector3.new(0, 0, 0))
+
+        -- Boîte ajustée à la carrure réelle
+        local box_w = math.clamp((bsize.X / math.max(bsize.Y, 0.1)) * 0.9, 0.32, 0.85)
+        box.Size = UDim2.new(box_w, 0, 0.85, 0)
+        health_bg.Position = UDim2.new(0.5 - box_w / 2, -3, 0.5, 2)
+
+        -- Squelette dessiné en 3D (donc parfaitement aligné sur le perso)
+        if show_skel then
+            local links = clone:FindFirstChild("UpperTorso") and ESP_BONES_R15 or ESP_BONES_R6
+            for _, pair in links do
+                local a = clone:FindFirstChild(pair[1])
+                local b = clone:FindFirstChild(pair[2])
+                if a and b then
+                    local aPos, bPos = a.Position, b.Position
+                    local len = (aPos - bPos).Magnitude
+                    if len > 0 then
+                        local bone = Instance.new("Part")
+                        bone.Name = "Bone"
+                        bone.Anchored = true
+                        bone.CanCollide = false
+                        bone.CanQuery = false
+                        bone.CanTouch = false
+                        bone.CastShadow = false
+                        bone.Material = Enum.Material.SmoothPlastic
+                        bone.Color = esp_color
+                        bone.Size = Vector3.new(0.07, 0.07, len)
+                        bone.CFrame = CFrame.lookAt((aPos + bPos) * 0.5, bPos)
+                        bone.Parent = viewport
+                    end
+                end
+            end
+        end
+    end
+
+    render()
+
+    local char_conn = LocalPlayer.CharacterAdded:Connect(function()
+        task.wait(0.35)
+        render()
+    end)
+
+    return {
+        frame = holder,
+        viewport = viewport,
+        connection = char_conn,
+        set_box = function(v) show_box = v; box.Visible = v end,
+        set_skeleton = function(v) show_skel = v; render() end,
+        set_character = function(v) show_char = v; render() end,
+        set_health = function(v) health_bg.Visible = v end,
+        set_name = function(v) name_label.Visible = v end,
+        set_player = function(n) name_label.Text = n end,
+        set_color = function(c) esp_color = c; box_stroke.Color = c; render() end,
+        set_health_percent = function(p)
+            health_fill.Size = UDim2.new(math.clamp(p, 0, 1), 0, 1, 0)
+        end,
+        refresh = render,
+    }
+end
+
+-- ==============================================================================
 -- WINDOW
 -- ==============================================================================
 function library:window(cfg)
@@ -483,6 +700,60 @@ function library:window(cfg)
         end
 
         return float_obj
+    end
+
+    -- ==============================================================================
+    -- ESP PREVIEW FLOTTANT (hors du menu, déplaçable)
+    -- ==============================================================================
+    function window_obj:esp_preview(options)
+        options = options or {}
+        local size = options.size or UDim2.new(0, 190, 0, 252)
+        local pos = options.position or UDim2.new(0.5, 270, 0.5, -126)
+        local title = options.title or "ESP Preview"
+
+        local fw = library:create("Frame", {
+            Name = "FloatingESP",
+            Size = size,
+            Position = pos,
+            BackgroundColor3 = library.theme.main_bg,
+            BorderSizePixel = 0,
+            Parent = screen,
+        })
+        make_corner(fw, 3)
+        make_stroke(fw, library.theme.border, 1)
+        make_draggable(fw)
+
+        local header = library:create("Frame", {
+            Size = UDim2.new(1, 0, 0, 20),
+            BackgroundColor3 = library.theme.panel_bg,
+            BorderSizePixel = 0,
+            Parent = fw,
+        })
+        make_corner(header, 3)
+
+        library:create("TextLabel", {
+            Size = UDim2.new(1, -8, 1, 0),
+            Position = UDim2.new(0, 8, 0, 0),
+            BackgroundTransparency = 1,
+            Font = Enum.Font.SourceSansBold,
+            Text = title,
+            TextColor3 = library.theme.text,
+            TextSize = 11,
+            TextXAlignment = Enum.TextXAlignment.Left,
+            Parent = header,
+        })
+
+        local content = library:create("Frame", {
+            Size = UDim2.new(1, -8, 1, -28),
+            Position = UDim2.new(0, 4, 0, 24),
+            BackgroundTransparency = 1,
+            Parent = fw,
+        })
+
+        local preview = library:BuildESPPreview(content, options)
+        preview.window = fw
+        preview.close = function() fw:Destroy() end
+        return preview
     end
 
     -- ==============================================================================
@@ -1422,191 +1693,15 @@ function library:window(cfg)
                 section_obj.colorpicker = section_obj.Colorpicker
 
                 -- =====================================================================
-                -- ESP PREVIEW (style GameSense : box + skeleton + vie + nom)
+                -- ESP PREVIEW (vrai personnage de face : box + skeleton + vie + nom)
+                -- Intégré au menu, ou détaché en fenêtre flottante (options.floating)
                 -- =====================================================================
                 function section_obj:ESPPreview(options)
                     options = options or {}
-                    local height = options.height or 190
-                    local esp_color = options.color or options.Color or library.theme.accent
-                    local player_name = options.player or options.Player or "Player"
-                    local show_box = options.box
-                    if show_box == nil then show_box = true end
-                    local show_skeleton = options.skeleton
-                    if show_skeleton == nil then show_skeleton = true end
-                    local show_health = options.health
-                    if show_health == nil then show_health = true end
-                    local show_name = options.nametag
-                    if show_name == nil then show_name = true end
-
-                    local holder = library:create("Frame", {
-                        Parent = scroll,
-                        Name = "ESPPreview",
-                        Size = UDim2.new(1, 0, 0, height),
-                        BackgroundColor3 = Color3.fromRGB(11, 11, 11),
-                        BorderSizePixel = 0,
-                    })
-                    make_corner(holder, 3)
-                    make_stroke(holder, library.theme.border_dark, 1)
-
-                    -- Quadrillage discret en arrière-plan
-                    for i = 1, 3 do
-                        library:create("Frame", {
-                            Size = UDim2.new(1, -8, 0, 1),
-                            Position = UDim2.new(0, 4, i / 4, 0),
-                            BackgroundColor3 = Color3.fromRGB(20, 20, 20),
-                            BorderSizePixel = 0,
-                            Parent = holder,
-                        })
+                    if options.floating or options.detached then
+                        return window_obj:esp_preview(options)
                     end
-
-                    -- Canvas centré à taille fixe (reste centré si la fenêtre est redimensionnée)
-                    local canvas = library:create("Frame", {
-                        AnchorPoint = Vector2.new(0.5, 0.5),
-                        Position = UDim2.new(0.5, 0, 0.5, 0),
-                        Size = UDim2.fromOffset(140, height - 20),
-                        BackgroundTransparency = 1,
-                        Parent = holder,
-                    })
-
-                    local cx = 70
-
-                    -- Joints du squelette
-                    local neck   = {cx, 43}
-                    local pelvis = {cx, 80}
-                    local sho_l  = {cx - 16, 48}
-                    local sho_r  = {cx + 16, 48}
-                    local elb_l  = {cx - 22, 66}
-                    local elb_r  = {cx + 22, 66}
-                    local hand_l = {cx - 24, 84}
-                    local hand_r = {cx + 24, 84}
-                    local hip_l  = {cx - 8, 82}
-                    local hip_r  = {cx + 8, 82}
-                    local knee_l = {cx - 10, 112}
-                    local knee_r = {cx + 10, 112}
-                    local foot_l = {cx - 12, 142}
-                    local foot_r = {cx + 12, 142}
-
-                    local skeleton = library:create("Frame", {
-                        Name = "Skeleton",
-                        BackgroundTransparency = 1,
-                        Size = UDim2.new(1, 0, 1, 0),
-                        Visible = show_skeleton,
-                        Parent = canvas,
-                    })
-
-                    local function draw_line(x1, y1, x2, y2, color, thickness)
-                        local dx, dy = x2 - x1, y2 - y1
-                        local length = math.sqrt(dx * dx + dy * dy)
-                        local angle = math.deg(math.atan2 and math.atan2(dy, dx) or math.atan(dy, dx))
-                        return library:create("Frame", {
-                            BackgroundColor3 = color,
-                            BorderSizePixel = 0,
-                            AnchorPoint = Vector2.new(0, 0.5),
-                            Position = UDim2.fromOffset(x1, y1),
-                            Size = UDim2.fromOffset(length, thickness or 1),
-                            Rotation = angle,
-                            ZIndex = 2,
-                            Parent = skeleton,
-                        })
-                    end
-
-                    draw_line(neck[1], neck[2], pelvis[1], pelvis[2], esp_color, 1)
-                    draw_line(sho_l[1], sho_l[2], sho_r[1], sho_r[2], esp_color, 1)
-                    draw_line(sho_l[1], sho_l[2], elb_l[1], elb_l[2], esp_color, 1)
-                    draw_line(elb_l[1], elb_l[2], hand_l[1], hand_l[2], esp_color, 1)
-                    draw_line(sho_r[1], sho_r[2], elb_r[1], elb_r[2], esp_color, 1)
-                    draw_line(elb_r[1], elb_r[2], hand_r[1], hand_r[2], esp_color, 1)
-                    draw_line(hip_l[1], hip_l[2], hip_r[1], hip_r[2], esp_color, 1)
-                    draw_line(hip_l[1], hip_l[2], knee_l[1], knee_l[2], esp_color, 1)
-                    draw_line(knee_l[1], knee_l[2], foot_l[1], foot_l[2], esp_color, 1)
-                    draw_line(hip_r[1], hip_r[2], knee_r[1], knee_r[2], esp_color, 1)
-                    draw_line(knee_r[1], knee_r[2], foot_r[1], foot_r[2], esp_color, 1)
-
-                    -- Tête (cercle)
-                    local head = library:create("Frame", {
-                        Name = "Head",
-                        AnchorPoint = Vector2.new(0.5, 0.5),
-                        Position = UDim2.fromOffset(cx, 32),
-                        Size = UDim2.fromOffset(18, 18),
-                        BackgroundTransparency = 1,
-                        ZIndex = 2,
-                        Parent = skeleton,
-                    })
-                    make_corner(head, 9)
-                    local head_stroke = make_stroke(head, esp_color, 1)
-
-                    -- Boîte englobante
-                    local box = library:create("Frame", {
-                        Name = "Box",
-                        AnchorPoint = Vector2.new(0.5, 0.5),
-                        Position = UDim2.fromOffset(cx, 84),
-                        Size = UDim2.fromOffset(60, 132),
-                        BackgroundTransparency = 1,
-                        ZIndex = 1,
-                        Visible = show_box,
-                        Parent = canvas,
-                    })
-                    local box_stroke = make_stroke(box, esp_color, 1)
-
-                    -- Barre de vie (à gauche de la boîte)
-                    local health_bg = library:create("Frame", {
-                        Name = "Health",
-                        AnchorPoint = Vector2.new(0.5, 0.5),
-                        Position = UDim2.fromOffset(cx - 36, 84),
-                        Size = UDim2.fromOffset(3, 132),
-                        BackgroundColor3 = Color3.fromRGB(30, 30, 30),
-                        BorderSizePixel = 0,
-                        ZIndex = 1,
-                        Visible = show_health,
-                        Parent = canvas,
-                    })
-                    local health_fill = library:create("Frame", {
-                        Size = UDim2.new(1, 0, 1, 0),
-                        BackgroundColor3 = Color3.fromRGB(90, 220, 120),
-                        BorderSizePixel = 0,
-                        ZIndex = 2,
-                        Parent = health_bg,
-                    })
-
-                    -- Nom au-dessus de la boîte
-                    local name_label = library:create("TextLabel", {
-                        Name = "NameTag",
-                        AnchorPoint = Vector2.new(0.5, 0.5),
-                        Position = UDim2.fromOffset(cx, 12),
-                        Size = UDim2.fromOffset(124, 14),
-                        BackgroundTransparency = 1,
-                        Font = Enum.Font.SourceSansBold,
-                        Text = player_name,
-                        TextColor3 = Color3.fromRGB(255, 255, 255),
-                        TextSize = 11,
-                        TextStrokeTransparency = 0.4,
-                        TextStrokeColor3 = Color3.fromRGB(0, 0, 0),
-                        ZIndex = 3,
-                        Visible = show_name,
-                        Parent = canvas,
-                    })
-
-                    return {
-                        frame = holder,
-                        set_color = function(c)
-                            esp_color = c
-                            box_stroke.Color = c
-                            head_stroke.Color = c
-                            for _, child in skeleton:GetChildren() do
-                                if child:IsA("Frame") then
-                                    child.BackgroundColor3 = c
-                                end
-                            end
-                        end,
-                        set_box = function(v) box.Visible = v end,
-                        set_skeleton = function(v) skeleton.Visible = v end,
-                        set_health = function(v) health_bg.Visible = v end,
-                        set_name = function(v) name_label.Visible = v end,
-                        set_player = function(n) name_label.Text = n end,
-                        set_health_percent = function(p)
-                            health_fill.Size = UDim2.new(math.clamp(p, 0, 1), 0, 1, 0)
-                        end,
-                    }
+                    return library:BuildESPPreview(scroll, options)
                 end
                 section_obj.esppreview = section_obj.ESPPreview
                 section_obj.ESP = section_obj.ESPPreview
