@@ -1,6 +1,5 @@
 -- REASON: Discontinued nobody wanted to buy it either...
 -- Rewritten: Gamesense CS2 style + icon sidebar + compact sub-tab badges + rounded + mobile
--- FULL VERSION: toutes les fonctions restaurées
 
 -- ===== SERVICES =====
 local uis = game:GetService("UserInputService")
@@ -22,10 +21,6 @@ local vec2 = Vector2.new
 local vec3 = Vector3.new
 local dim2 = UDim2.new
 local dim = UDim.new
-local rect = Rect.new
-local cfr = CFrame.new
-local empty_cfr = cfr()
-local angle = CFrame.Angles
 local dim_offset = UDim2.fromOffset
 
 local color = Color3.new
@@ -46,14 +41,10 @@ local max = math.max
 local floor = math.floor
 local min = math.min
 local abs = math.abs
-local noise = math.noise
 local rad = math.rad
 local random = math.random
-local pow = math.pow
 local sin = math.sin
 local pi = math.pi
-local tan = math.tan
-local atan2 = math.atan2
 local clamp = math.clamp
 
 local insert = table.insert
@@ -108,7 +99,6 @@ local themes = {
     utility = {
         accent = {BackgroundColor3 = {}, Color = {}, ScrollBarImageColor3 = {}, TextColor3 = {}, ImageColor3 = {}},
         text = {TextColor3 = {}, BackgroundColor3 = {}},
-        text_outline = {Color = {}},
         a = {BackgroundColor3 = {}, Color = {}},
         b = {BackgroundColor3 = {}, Color = {}},
         c = {BackgroundColor3 = {}, Color = {}},
@@ -121,7 +111,6 @@ local themes = {
     }
 }
 
--- ===== KEYS (complet) =====
 local keys = {
     [Enum.KeyCode.LeftShift] = "LS", [Enum.KeyCode.RightShift] = "RS",
     [Enum.KeyCode.LeftControl] = "LC", [Enum.KeyCode.RightControl] = "RC",
@@ -132,19 +121,11 @@ local keys = {
     [Enum.KeyCode.Four] = "4", [Enum.KeyCode.Five] = "5", [Enum.KeyCode.Six] = "6",
     [Enum.KeyCode.Seven] = "7", [Enum.KeyCode.Eight] = "8", [Enum.KeyCode.Nine] = "9",
     [Enum.KeyCode.Zero] = "0",
-    [Enum.KeyCode.KeypadOne] = "Num1", [Enum.KeyCode.KeypadTwo] = "Num2",
-    [Enum.KeyCode.KeypadThree] = "Num3", [Enum.KeyCode.KeypadFour] = "Num4",
-    [Enum.KeyCode.KeypadFive] = "Num5", [Enum.KeyCode.KeypadSix] = "Num6",
-    [Enum.KeyCode.KeypadSeven] = "Num7", [Enum.KeyCode.KeypadEight] = "Num8",
-    [Enum.KeyCode.KeypadNine] = "Num9", [Enum.KeyCode.KeypadZero] = "Num0",
     [Enum.KeyCode.Minus] = "-", [Enum.KeyCode.Equals] = "=",
-    [Enum.KeyCode.Tilde] = "~", [Enum.KeyCode.LeftBracket] = "[",
-    [Enum.KeyCode.RightBracket] = "]", [Enum.KeyCode.RightParenthesis] = ")",
-    [Enum.KeyCode.LeftParenthesis] = "(", [Enum.KeyCode.Semicolon] = ",",
-    [Enum.KeyCode.Quote] = "'", [Enum.KeyCode.BackSlash] = "\\",
-    [Enum.KeyCode.Comma] = ",", [Enum.KeyCode.Period] = ".",
-    [Enum.KeyCode.Slash] = "/", [Enum.KeyCode.Asterisk] = "*",
-    [Enum.KeyCode.Plus] = "+", [Enum.KeyCode.Backquote] = "`",
+    [Enum.KeyCode.LeftBracket] = "[", [Enum.KeyCode.RightBracket] = "]",
+    [Enum.KeyCode.Semicolon] = ",", [Enum.KeyCode.Quote] = "'",
+    [Enum.KeyCode.BackSlash] = "\\", [Enum.KeyCode.Comma] = ",",
+    [Enum.KeyCode.Period] = ".", [Enum.KeyCode.Slash] = "/",
     [Enum.UserInputType.MouseButton1] = "MB1",
     [Enum.UserInputType.MouseButton2] = "MB2",
     [Enum.UserInputType.MouseButton3] = "MB3",
@@ -198,19 +179,6 @@ library.apply_corner = apply_corner
 function library:tween(obj, props)
     return tween_service:Create(obj,
         TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), props):Play()
-end
-
-function library:close_current_element(cfg)
-    local path = library.current_element_open
-    if path then
-        path.set_visible(false)
-        path.open = false
-    end
-end
-
-library.lerp = function(start, finish, t)
-    t = t or 1 / 8
-    return start * (1 - t) + finish * t
 end
 
 function library:mouse_in_frame(uiobject)
@@ -278,54 +246,6 @@ function library:convert(str)
     if #v == 4 then return unpack(v) end
 end
 
-function library:convert_enum(enum)
-    local parts = {}
-    for p in string.gmatch(enum, "[%w_]+") do insert(parts, p) end
-    local t = Enum
-    for i = 2, #parts do t = t[parts[i]] end
-    return t
-end
-
-local config_holder
-function library:update_config_list()
-    if not config_holder then return end
-    local list = {}
-    for _, file in next, listfiles(library.directory .. "/configs") do
-        local name = file:gsub(library.directory .. "/configs\\", ""):gsub(".cfg", ""):gsub(library.directory .. "\\configs\\", "")
-        list[#list + 1] = name
-    end
-    config_holder.refresh_options(list)
-end
-
-function library:get_config()
-    local Config = {}
-    for _, v in flags do
-        if type(v) == "table" and v.key then
-            Config[_] = {active = v.active, mode = v.mode, key = tostring(v.key)}
-        elseif type(v) == "table" and v["Transparency"] and v["Color"] then
-            Config[_] = {Transparency = v["Transparency"], Color = v["Color"]:ToHex()}
-        else
-            Config[_] = v
-        end
-    end
-    return http_service:JSONEncode(Config)
-end
-
-function library:load_config(config_json)
-    local config = http_service:JSONDecode(config_json)
-    for _, v in next, config do
-        local function_set = library.config_flags[_]
-        if _ == "config_name_list" then continue end
-        if function_set then
-            if type(v) == "table" and v["Transparency"] and v["Color"] then
-                function_set(hex(v["Color"]), v["Transparency"])
-            else
-                function_set(v)
-            end
-        end
-    end
-end
-
 function library:round(n, f)
     local m = 1 / (f or 1)
     return floor(n * m + 0.5) / m
@@ -337,26 +257,10 @@ function library:apply_theme(inst, theme, prop)
     end
 end
 
-function library:update_theme(theme, c)
-    if not themes.utility[theme] then return end
-    for _, property in themes.utility[theme] do
-        for m, object in property do
-            if object[m] == themes.preset[theme] then
-                object[m] = c
-            end
-        end
-    end
-    themes.preset[theme] = c
-end
-
 function library:connection(sig, cb)
     local c = sig:Connect(cb)
     insert(library.connections, c)
     return c
-end
-
-function library:apply_stroke(parent)
-    -- conservé vide pour compat avec l'API originale
 end
 
 function library:create(class, props)
@@ -367,7 +271,6 @@ function library:create(class, props)
     end
     if class == "TextLabel" or class == "TextButton" or class == "TextBox" then
         library:apply_theme(ins, "text", "TextColor3")
-        library:apply_stroke(ins)
     end
     return ins
 end
@@ -379,80 +282,12 @@ function library:unload_menu()
 end
 
 -- =========================================================
--- WATERMARK
--- =========================================================
-function library:watermark(options)
-    local cfg = { name = options.name or "gamesense" }
-
-    local outline = library:create("Frame", {
-        Parent = library.gui,
-        Size = dim2(0, 0, 0, 18),
-        Position = dim2(0, 50, 0, 50),
-        BorderSizePixel = 0,
-        AutomaticSize = Enum.AutomaticSize.XY,
-        BackgroundColor3 = themes.preset.a,
-    })
-    apply_corner(outline, 4)
-    library:apply_theme(outline, "a", "BackgroundColor3")
-    library:draggify(outline)
-
-    local inline = library:create("Frame", {
-        Parent = outline,
-        Position = dim2(0, 1, 0, 1),
-        BorderSizePixel = 0,
-        AutomaticSize = Enum.AutomaticSize.XY,
-        BackgroundColor3 = themes.preset.header,
-    })
-    apply_corner(inline, 3)
-    library:apply_theme(inline, "header", "BackgroundColor3")
-
-    library:create("TextLabel", {
-        Parent = inline,
-        BackgroundTransparency = 1,
-        FontFace = library.font,
-        Text = "◈ ",
-        TextColor3 = themes.preset.accent,
-        TextSize = 12,
-        AutomaticSize = Enum.AutomaticSize.XY,
-        Position = dim2(0, 6, 0, -2),
-        TextXAlignment = Enum.TextXAlignment.Left,
-        ZIndex = 2,
-    })
-    library:apply_theme(inline, "accent", "BackgroundColor3")
-
-    local title = library:create("TextLabel", {
-        Parent = inline,
-        BackgroundTransparency = 1,
-        FontFace = library.font,
-        Text = cfg.name,
-        TextColor3 = themes.preset.text,
-        TextSize = 12,
-        AutomaticSize = Enum.AutomaticSize.XY,
-        Position = dim2(0, 26, 0, -2),
-        TextXAlignment = Enum.TextXAlignment.Left,
-        ZIndex = 2,
-    })
-
-    library:create("UIPadding", {
-        PaddingTop = dim(0, 5), PaddingBottom = dim(0, 4),
-        PaddingLeft = dim(0, 4), PaddingRight = dim(0, 10),
-        Parent = inline,
-    })
-
-    function cfg.update_text(text)
-        title.Text = cfg.name
-    end
-
-    return setmetatable(cfg, library)
-end
-
--- =========================================================
 -- WINDOW
 -- =========================================================
 function library:window(props)
     local cfg = {
         name = props.name or "gamesense",
-        size = props.size or dim2(0, 400, 0, 320),
+        size = props.size or dim2(0, 400, 0, 320),  -- ← COMPACT comme l'image
         selected_tab,
         tabs = {},
     }
@@ -475,6 +310,7 @@ function library:window(props)
         if us then us.Scale = UI_SCALE end
     end)
 
+    -- MAIN
     local main = library:create("Frame", {
         Parent = library.gui, BackgroundTransparency = 1,
         Position = dim2(0.5, -cfg.size.X.Offset / 2, 0.5, -cfg.size.Y.Offset / 2),
@@ -498,6 +334,7 @@ function library:window(props)
     apply_corner(panel, 7)
     library:apply_theme(panel, "b", "BackgroundColor3")
 
+    -- HEADER (barre fine)
     local header_h = 26
 
     local header = library:create("Frame", {
@@ -507,11 +344,13 @@ function library:window(props)
     apply_corner(header, 7)
     library:apply_theme(header, "header", "BackgroundColor3")
 
+    -- cover bottom corners
     library:create("Frame", {
         Parent = header, BackgroundColor3 = themes.preset.header,
         BorderSizePixel = 0, Position = dim2(0, 0, 1, -6), Size = dim2(1, 0, 0, 6), ZIndex = 1,
     })
 
+    -- LOGO ◈ + titre
     library:create("TextLabel", {
         Parent = header, BackgroundTransparency = 1, FontFace = library.font,
         Text = "◈", TextColor3 = themes.preset.accent, TextSize = 16,
@@ -526,6 +365,7 @@ function library:window(props)
         TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 3,
     })
 
+    -- CLOSE
     local close = library:create("TextButton", {
         Parent = header, BackgroundColor3 = themes.preset.b,
         BorderSizePixel = 0, Text = "X", FontFace = library.font,
@@ -542,12 +382,14 @@ function library:window(props)
     end)
     close.MouseButton1Click:Connect(function() library:unload_menu() end)
 
+    -- séparateur
     library:create("Frame", {
         Parent = panel, BackgroundColor3 = themes.preset.border,
         BorderSizePixel = 0, Position = dim2(0, 0, 0, header_h),
         Size = dim2(1, 0, 0, 1), ZIndex = 3,
     })
 
+    -- ICON SIDEBAR (très fine comme l'image)
     local icon_w = is_mobile and 32 or 34
 
     local sidebar = library:create("Frame", {
@@ -570,6 +412,7 @@ function library:window(props)
         Size = dim2(0, 1, 1, -(header_h + 1)), ZIndex = 3,
     })
 
+    -- CONTENT
     local content = library:create("Frame", {
         Parent = panel, BackgroundTransparency = 1,
         Position = dim2(0, icon_w + 1, 0, header_h + 1),
@@ -586,7 +429,7 @@ function library:window(props)
 end
 
 -- =========================================================
--- TAB
+-- TAB (icône dans sidebar)
 -- =========================================================
 function library:tab(props)
     local cfg = {
@@ -599,6 +442,7 @@ function library:tab(props)
     local icon_size = is_mobile and 24 or 26
     insert(self.tabs, cfg)
 
+    -- ICON BTN
     local btn = library:create("TextButton", {
         Parent = self.icon_holder, BackgroundColor3 = themes.preset.b,
         BorderSizePixel = 0, Size = dim2(0, icon_size, 0, icon_size),
@@ -606,14 +450,6 @@ function library:tab(props)
         LayoutOrder = #self.tabs,
     })
     apply_corner(btn, 5)
-
-    local bar = library:create("Frame", {
-        Parent = btn, BackgroundColor3 = themes.preset.accent,
-        BorderSizePixel = 0, Position = dim2(0, -5, 0.5, -6),
-        Size = dim2(0, 2, 0, 12), Visible = false, ZIndex = 5,
-    })
-    apply_corner(bar, 1)
-    library:apply_theme(bar, "accent", "BackgroundColor3")
 
     local icon_img, icon_text
     if cfg.icon and tostring(cfg.icon):find("rbxassetid") then
@@ -634,12 +470,14 @@ function library:tab(props)
         })
     end
 
+    -- PAGE
     local page = library:create("Frame", {
         Parent = self.content, BackgroundTransparency = 1,
         Size = dim2(1, 0, 1, 0), Visible = false, BorderSizePixel = 0,
     })
     cfg.page = page
 
+    -- SUB-TAB BAR (petits badges A, B, C)
     local sub_bar = library:create("Frame", {
         Parent = page, BackgroundTransparency = 1,
         Size = dim2(1, 0, 0, 24), BorderSizePixel = 0,
@@ -652,6 +490,7 @@ function library:tab(props)
     library:create("UIPadding", { Parent = sub_bar, PaddingLeft = dim(0, 6), PaddingTop = dim(0, 4) })
     cfg.sub_bar = sub_bar
 
+    -- SUB CONTENT HOLDER
     local sub_holder = library:create("Frame", {
         Parent = page, BackgroundTransparency = 1,
         Position = dim2(0, 0, 0, 26), Size = dim2(1, 0, 1, -26),
@@ -664,13 +503,11 @@ function library:tab(props)
             local p = self.selected_tab
             p.page.Visible = false
             p.btn.BackgroundColor3 = themes.preset.b
-            p.bar.Visible = false
             if p.icon_img then p.icon_img.ImageColor3 = themes.preset.text_dim end
             if p.icon_text then p.icon_text.TextColor3 = themes.preset.text_dim end
         end
         page.Visible = true
         btn.BackgroundColor3 = themes.preset.c
-        bar.Visible = true
         if icon_img then icon_img.ImageColor3 = themes.preset.accent end
         if icon_text then icon_text.TextColor3 = themes.preset.accent end
         self.selected_tab = cfg
@@ -680,7 +517,7 @@ function library:tab(props)
         end
     end
 
-    cfg.btn = btn; cfg.bar = bar
+    cfg.btn = btn
     cfg.icon_img = icon_img; cfg.icon_text = icon_text
 
     btn.MouseButton1Down:Connect(function() cfg.open_tab() end)
@@ -691,9 +528,11 @@ function library:tab(props)
         if self.selected_tab ~= cfg then btn.BackgroundColor3 = themes.preset.b end
     end)
 
+    -- SUBTAB
     function cfg:subtab(p)
         local sub = { name = p.name or "sub", label = p.label or p.name or "?" }
 
+        -- Badge (petit carré avec lettre)
         local badge = library:create("TextButton", {
             Parent = sub_bar, BackgroundColor3 = themes.preset.c,
             BorderSizePixel = 0,
@@ -707,14 +546,7 @@ function library:tab(props)
         })
         apply_corner(badge, 3)
 
-        local line = library:create("Frame", {
-            Parent = badge, BackgroundColor3 = themes.preset.accent,
-            BorderSizePixel = 0, Position = dim2(0, 0, 1, -1),
-            Size = dim2(1, 0, 0, 1), Visible = false,
-        })
-        apply_corner(line, 1)
-        library:apply_theme(line, "accent", "BackgroundColor3")
-
+        -- Sub page
         local sp = library:create("Frame", {
             Parent = sub_holder, BackgroundTransparency = 1,
             Size = dim2(1, 0, 1, 0), Visible = false, BorderSizePixel = 0,
@@ -745,18 +577,16 @@ function library:tab(props)
         })
 
         sub.left = left; sub.right = right; sub.page = sp
-        sub.badge = badge; sub.line = line
+        sub.badge = badge
         sub.parent_tab = cfg
 
         function sub.open()
             if cfg.selected_sub then
                 cfg.selected_sub.page.Visible = false
-                cfg.selected_sub.line.Visible = false
                 cfg.selected_sub.badge.BackgroundColor3 = themes.preset.c
                 cfg.selected_sub.badge.TextColor3 = themes.preset.text_dim
             end
             sp.Visible = true
-            line.Visible = true
             badge.BackgroundColor3 = themes.preset.accent
             badge.TextColor3 = rgb(255, 255, 255)
             cfg.selected_sub = sub
@@ -780,7 +610,7 @@ function library:section(props, parent_sub)
     local cfg = {
         name = props.name or "section",
         side = props.side or "left",
-        label = props.label or "A",
+        label = props.label or "A",  -- ← petit label carré A / B
     }
 
     local parent = parent_sub and parent_sub[cfg.side] or self[cfg.side]
@@ -792,6 +622,7 @@ function library:section(props, parent_sub)
         AutomaticSize = Enum.AutomaticSize.Y,
     })
 
+    -- Panel fond
     local a = library:create("Frame", {
         Parent = section, BorderSizePixel = 0,
         BackgroundColor3 = themes.preset.a,
@@ -809,11 +640,13 @@ function library:section(props, parent_sub)
     apply_corner(c, 4)
     library:apply_theme(c, "c", "BackgroundColor3")
 
+    -- ===== HEADER avec badge A/B =====
     local header = library:create("Frame", {
         Parent = c, BackgroundTransparency = 1,
         Size = dim2(1, 0, 0, 20), ZIndex = 2,
     })
 
+    -- Badge carré avec lettre
     local badge = library:create("Frame", {
         Parent = header, BackgroundColor3 = themes.preset.a,
         BorderSizePixel = 0,
@@ -830,6 +663,7 @@ function library:section(props, parent_sub)
         Size = dim2(1, 0, 1, 0), ZIndex = 5,
     })
 
+    -- Titre section
     library:create("TextLabel", {
         Parent = header, BackgroundTransparency = 1,
         FontFace = library.font, Text = cfg.name,
@@ -840,6 +674,7 @@ function library:section(props, parent_sub)
         ZIndex = 3,
     })
 
+    -- Scrolling content
     local scrolling = library:create("ScrollingFrame", {
         Parent = c, BackgroundTransparency = 1,
         Position = dim2(0, 0, 0, 20),
@@ -882,6 +717,7 @@ end
 -- ELEMENTS
 -- =========================================================
 
+-- LABEL
 function library:label(options)
     local cfg = { name = options.name or "label" }
     local label = library:create("Frame", {
@@ -911,6 +747,7 @@ function library:label(options)
     return setmetatable(cfg, library)
 end
 
+-- TOGGLE
 function library:toggle(options)
     local cfg = {
         name = options.name or "Toggle",
@@ -969,6 +806,7 @@ function library:toggle(options)
     return setmetatable(cfg, library)
 end
 
+-- SLIDER
 function library:slider(options)
     local cfg = {
         name = options.name or "Slider",
@@ -1067,6 +905,7 @@ function library:slider(options)
     return setmetatable(cfg, library)
 end
 
+-- BUTTON
 function library:button(options)
     local cfg = {
         name = options.name or "Button",
@@ -1102,6 +941,7 @@ function library:button(options)
     return setmetatable(cfg, library)
 end
 
+-- DROPDOWN
 function library:dropdown(options)
     local cfg = {
         name = options.name or "Dropdown",
@@ -1255,6 +1095,7 @@ function library:dropdown(options)
     return setmetatable(cfg, library)
 end
 
+-- TEXTBOX
 function library:textbox(options)
     local cfg = {
         name = options.name or "TextBox",
@@ -1307,6 +1148,7 @@ function library:textbox(options)
     return setmetatable(cfg, library)
 end
 
+-- KEYBIND
 function library:keybind(options)
     local cfg = {
         flag = options.flag or "kb_flag",
@@ -1466,6 +1308,7 @@ function library:keybind(options)
     return setmetatable(cfg, library)
 end
 
+-- COLORPICKER
 function library:colorpicker(options)
     local cfg = {
         name = options.name or "Color",
@@ -1684,7 +1527,7 @@ end
 -- =========================================================
 local notifications = { notifs = {} }
 
-function notifications:refresh_notifs()
+function notifications:refresh()
     for i, v in notifications.notifs do
         tween_service:Create(v, TweenInfo.new(0.5, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out),
             {Position = dim_offset(14, 14 + (i * 26))}):Play()
@@ -1727,6 +1570,7 @@ function notifications:create_notification(options)
     apply_corner(inl, 3)
     library:apply_theme(inl, "c", "BackgroundColor3")
 
+    -- accent bar left
     library:create("Frame", {
         Parent = o, BackgroundColor3 = themes.preset.accent,
         BorderSizePixel = 0, Position = dim2(0, 0, 0, 2),
@@ -1750,7 +1594,7 @@ function notifications:create_notification(options)
 
     local idx = #notifications.notifs + 1
     notifications.notifs[idx] = o
-    notifications:refresh_notifs()
+    notifications:refresh()
     notifications:fade(o, false)
 
     task.spawn(function()
