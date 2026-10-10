@@ -632,18 +632,24 @@ function library:window(cfg)
             local sub_btn = library:create("TextButton", {
                 Name = "SubBtn_" .. sub_name,
                 AutomaticSize = Enum.AutomaticSize.X,
-                Size = UDim2.new(0, 24, 0, 18),
-                BackgroundColor3 = library.theme.panel_bg,
+                Size = UDim2.new(0, 24, 0, 20),
+                BackgroundColor3 = library.theme.element_bg,
+                BackgroundTransparency = 1,
                 BorderSizePixel = 0,
                 Font = Enum.Font.SourceSansBold,
-                Text = "  " .. sub_label .. "  ",
+                Text = sub_label,
                 TextColor3 = library.theme.text_dim,
                 TextSize = 11,
                 AutoButtonColor = false,
                 Parent = subtab_bar
             })
             make_corner(sub_btn, 3)
-            make_stroke(sub_btn, library.theme.border_dark, 1)
+
+            library:create("UIPadding", {
+                PaddingLeft = UDim.new(0, 10),
+                PaddingRight = UDim.new(0, 10),
+                Parent = sub_btn
+            })
 
             -- Conteneur colonnes A et B
             local sub_view = library:create("Frame", {
@@ -681,21 +687,40 @@ function library:window(cfg)
                 btn = sub_btn,
                 view = sub_view,
                 left = col_a,
-                right = col_b
+                right = col_b,
+                active = false
             }
 
             function sub_obj:select()
                 if tab_obj.current_sub then
                     local prev = tab_obj.current_sub
                     prev.view.Visible = false
-                    prev.btn.TextColor3 = library.theme.text_dim
-                    prev.btn.BackgroundColor3 = library.theme.panel_bg
+                    prev.active = false
+                    library:tween(prev.btn, {
+                        TextColor3 = library.theme.text_dim,
+                        BackgroundTransparency = 1
+                    }, nil, 0.15)
                 end
                 tab_obj.current_sub = sub_obj
+                sub_obj.active = true
                 sub_view.Visible = true
-                sub_btn.TextColor3 = library.theme.text
-                sub_btn.BackgroundColor3 = library.theme.element_bg
+                library:tween(sub_btn, {
+                    TextColor3 = library.theme.text,
+                    BackgroundTransparency = 0.6
+                }, nil, 0.15)
             end
+
+            sub_btn.MouseEnter:Connect(function()
+                if not sub_obj.active then
+                    library:tween(sub_btn, {TextColor3 = library.theme.text_dark}, nil, 0.12)
+                end
+            end)
+
+            sub_btn.MouseLeave:Connect(function()
+                if not sub_obj.active then
+                    library:tween(sub_btn, {TextColor3 = library.theme.text_dim}, nil, 0.12)
+                end
+            end)
 
             sub_btn.MouseButton1Click:Connect(function() sub_obj:select() end)
 
