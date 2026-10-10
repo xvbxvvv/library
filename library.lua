@@ -1600,22 +1600,56 @@ function library:window(cfg)
         Parent = sidebar
     })
 
-    local raw_logo = cfg.Logo or cfg.logo or "135215559087473"
-    local logo_id = tostring(raw_logo)
-    if not logo_id:match("^rbxassetid://") and not logo_id:match("^rbxasset://") and not logo_id:match("^http") then
-        logo_id = "rbxassetid://" .. logo_id
+    local function resolve_logo(logo_input)
+        local target_url = "https://raw.githubusercontent.com/xvbxvvv/logo/main/0fb782bd-42a8-46bd-8a52-7df5bee0812a.jpg"
+        local alt_url = "https://github.com/xvbxvvv/logo/blob/main/0fb782bd-42a8-46bd-8a52-7df5bee0812a.jpg?raw=true"
+        local fallback_rbx = "rbxassetid://135215559087473"
+        local filename = "ezwin_logo_0fb782bd.jpg"
+
+        if type(logo_input) == "number" or (type(logo_input) == "string" and logo_input:match("^%d+$")) then
+            return "rbxassetid://" .. tostring(logo_input)
+        elseif type(logo_input) == "string" and (logo_input:match("^rbxassetid://") or logo_input:match("^rbxasset://")) then
+            return logo_input
+        elseif type(logo_input) == "string" and logo_input:match("^https?://") then
+            target_url = logo_input
+        end
+
+        local getcustomasset = getcustomasset or getsynasset or (Drawing and Drawing.GetAsset) or customasset
+        if getcustomasset and writefile and isfile and readfile then
+            if not isfile(filename) then
+                local success, data = pcall(game.HttpGet, game, target_url)
+                if not success or not data or #data == 0 then
+                    success, data = pcall(game.HttpGet, game, alt_url)
+                end
+                if success and data and #data > 0 then
+                    pcall(writefile, filename, data)
+                end
+            end
+            if isfile(filename) then
+                local ok, asset = pcall(getcustomasset, filename)
+                if ok and asset then
+                    return asset
+                end
+            end
+        end
+
+        return fallback_rbx
     end
+
+    local logo_asset = resolve_logo(cfg.Logo or cfg.logo)
 
     local logo_img = library:create("ImageLabel", {
         Name = "LogoImage",
-        Size = UDim2.new(0, 36, 0, 36),
-        Position = UDim2.new(0.5, -18, 0.5, -18),
+        Size = UDim2.new(0, 38, 0, 38),
+        Position = UDim2.new(0.5, -19, 0.5, -19),
         BackgroundTransparency = 1,
-        Image = logo_id,
-        ImageColor3 = Color3.fromRGB(235, 230, 255),
+        Image = logo_asset,
+        ImageColor3 = Color3.fromRGB(255, 255, 255),
+        ScaleType = Enum.ScaleType.Fit,
         ZIndex = 5,
         Parent = logo_box
     })
+    make_corner(logo_img, 6)
 
     -- Séparateur sous le logo
     local logo_sep = library:create("Frame", {
@@ -2226,26 +2260,31 @@ function library:window(cfg)
         }
 
         function tab_obj:select()
+            if window_obj.current_tab == tab_obj then
+                return
+            end
+
             if window_obj.current_tab then
                 local prev = window_obj.current_tab
                 prev.page.Visible = false
-                prev.btn.BackgroundColor3 = library.theme.main_bg
+                library:tween(prev.btn, {BackgroundColor3 = Color3.fromRGB(15, 14, 22)}, nil, 0.15)
                 if prev.stroke then prev.stroke.Enabled = false end
                 if prev.icon.ClassName == "ImageLabel" then
-                    prev.icon.ImageColor3 = library.theme.text_dark
+                    library:tween(prev.icon, {ImageColor3 = library.theme.text_dark}, nil, 0.15)
                 else
-                    prev.icon.TextColor3 = library.theme.text_dark
+                    library:tween(prev.icon, {TextColor3 = library.theme.text_dark}, nil, 0.15)
                 end
             end
 
             window_obj.current_tab = tab_obj
             tab_page.Visible = true
-            tab_btn.BackgroundColor3 = library.theme.section_bg
+            library:tween(tab_btn, {BackgroundColor3 = Color3.fromRGB(34, 30, 50)}, nil, 0.15)
+            stroke.Color = library.theme.accent
             stroke.Enabled = true
             if icon_label.ClassName == "ImageLabel" then
-                icon_label.ImageColor3 = Color3.fromRGB(255, 255, 255)
+                library:tween(icon_label, {ImageColor3 = Color3.fromRGB(255, 255, 255)}, nil, 0.15)
             else
-                icon_label.TextColor3 = Color3.fromRGB(255, 255, 255)
+                library:tween(icon_label, {TextColor3 = Color3.fromRGB(255, 255, 255)}, nil, 0.15)
             end
 
             if not tab_obj.current_sub and #tab_obj.subtabs > 0 then
@@ -2256,6 +2295,28 @@ function library:window(cfg)
                 pcall(apply_search_filter)
             end
         end
+
+        tab_btn.MouseEnter:Connect(function()
+            if window_obj.current_tab ~= tab_obj then
+                library:tween(tab_btn, {BackgroundColor3 = Color3.fromRGB(25, 23, 36)}, nil, 0.12)
+                if icon_label.ClassName == "ImageLabel" then
+                    library:tween(icon_label, {ImageColor3 = Color3.fromRGB(200, 195, 225)}, nil, 0.12)
+                else
+                    library:tween(icon_label, {TextColor3 = Color3.fromRGB(200, 195, 225)}, nil, 0.12)
+                end
+            end
+        end)
+
+        tab_btn.MouseLeave:Connect(function()
+            if window_obj.current_tab ~= tab_obj then
+                library:tween(tab_btn, {BackgroundColor3 = Color3.fromRGB(15, 14, 22)}, nil, 0.12)
+                if icon_label.ClassName == "ImageLabel" then
+                    library:tween(icon_label, {ImageColor3 = library.theme.text_dark}, nil, 0.12)
+                else
+                    library:tween(icon_label, {TextColor3 = library.theme.text_dark}, nil, 0.12)
+                end
+            end
+        end)
 
         tab_obj.icon = icon_label
         tab_btn.MouseButton1Click:Connect(function() tab_obj:select() end)
@@ -2386,23 +2447,28 @@ function library:window(cfg)
             }
 
             function sub_obj:select()
+                if tab_obj.current_sub == sub_obj then
+                    return
+                end
+
                 if tab_obj.current_sub then
                     local prev = tab_obj.current_sub
                     prev.view.Visible = false
                     prev.active = false
                     if prev.stroke then prev.stroke.Enabled = false end
                     library:tween(prev.btn, {
-                        TextColor3 = Color3.fromRGB(180, 180, 180),
+                        TextColor3 = Color3.fromRGB(160, 155, 180),
                         BackgroundColor3 = library.theme.panel_bg
                     }, nil, 0.15)
                 end
                 tab_obj.current_sub = sub_obj
                 sub_obj.active = true
                 sub_view.Visible = true
+                sub_stroke.Color = library.theme.accent
                 sub_stroke.Enabled = true
                 library:tween(sub_btn, {
                     TextColor3 = Color3.fromRGB(255, 255, 255),
-                    BackgroundColor3 = Color3.fromRGB(8, 8, 8)
+                    BackgroundColor3 = Color3.fromRGB(28, 25, 42)
                 }, nil, 0.15)
             end
 
@@ -2947,15 +3013,12 @@ function library:window(cfg)
                         local outline_pos = dropdown_outline.AbsolutePosition
                         local outline_size = dropdown_outline.AbsoluteSize
                         local count = #dropdown_instance.Values
-                        local computed_height = math.clamp(count * 20 + 6, 26, 140)
-                        dropdown_holder.Size = UDim2.new(0, math.max(outline_size.X, 100), 0, computed_height)
+                        local computed_height = math.clamp(count * 20 + 8, 26, 140)
+                        local target_width = math.max(outline_size.X, 100)
 
-                        local cam_y = (workspace.CurrentCamera and workspace.CurrentCamera.ViewportSize.Y) or 1000
-                        if outline_pos.Y + outline_size.Y + computed_height > cam_y - 15 then
-                            dropdown_holder.Position = UDim2.new(0, outline_pos.X, 0, outline_pos.Y - computed_height - 2)
-                        else
-                            dropdown_holder.Position = UDim2.new(0, outline_pos.X, 0, outline_pos.Y + outline_size.Y + 2)
-                        end
+                        -- Toujours en dessous de dropdown_outline, ne calcule rien par rapport au bas
+                        dropdown_holder.Position = UDim2.new(0, outline_pos.X, 0, outline_pos.Y + outline_size.Y + 2)
+                        return target_width, computed_height
                     end
 
                     local function set_visible(bool)
@@ -2965,15 +3028,23 @@ function library:window(cfg)
                             end
                             library.ActiveDropdown = dropdown_instance
                             open = true
-                            update_position()
+                            local target_width, computed_height = update_position()
+                            dropdown_holder.ClipsDescendants = true
+                            dropdown_holder.Size = UDim2.new(0, target_width, 0, 0)
                             dropdown_holder.Visible = true
-                            arrow.Rotation = 180
+                            library:tween(dropdown_holder, { Size = UDim2.new(0, target_width, 0, computed_height) }, Enum.EasingStyle.Quart, 0.2)
+                            library:tween(arrow, { Rotation = 180 }, Enum.EasingStyle.Quad, 0.2)
                             make_stroke(dropdown_outline, library.theme.accent, 1)
                         else
                             open = false
-                            dropdown_holder.Visible = false
-                            arrow.Rotation = 0
                             make_stroke(dropdown_outline, library.theme.border_dark, 1)
+                            library:tween(arrow, { Rotation = 0 }, Enum.EasingStyle.Quad, 0.15)
+                            local tw = library:tween(dropdown_holder, { Size = UDim2.new(0, dropdown_holder.AbsoluteSize.X, 0, 0) }, Enum.EasingStyle.Quad, 0.15)
+                            tw.Completed:Connect(function()
+                                if not open then
+                                    dropdown_holder.Visible = false
+                                end
+                            end)
                             if library.ActiveDropdown == dropdown_instance then
                                 library.ActiveDropdown = nil
                             end
