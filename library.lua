@@ -69,7 +69,7 @@ local library = {
         OutlineColor    = Color3.fromRGB(42, 42, 42),
         FontColor       = Color3.fromRGB(225, 225, 225),
         Font            = Font.fromEnum(Enum.Font.SourceSans),
-        BackgroundImage = "",
+        BackgroundImage = "rbxassetid://2151741365",
     },
 
     theme = {
@@ -1546,58 +1546,196 @@ function library:window(cfg)
     make_stroke(main, self.theme.border, 1)
     make_draggable(main)
 
+    local default_bg = cfg.BackgroundImage or cfg.background or library.Scheme.BackgroundImage
+    if not default_bg or default_bg == "" then
+        default_bg = "rbxassetid://2151741365"
+    end
+    library.Scheme.BackgroundImage = default_bg
+
     local bg_img = library:create("ImageLabel", {
         Name = "BackgroundImage",
         Size = UDim2.new(1, 0, 1, 0),
         BackgroundTransparency = 1,
-        Image = library.Scheme.BackgroundImage or "",
-        ScaleType = Enum.ScaleType.Crop,
-        Visible = (library.Scheme.BackgroundImage ~= nil and library.Scheme.BackgroundImage ~= ""),
+        Image = default_bg,
+        ScaleType = Enum.ScaleType.Tile,
+        TileSize = UDim2.new(0, 64, 0, 64),
+        ImageTransparency = cfg.BackgroundTransparency or 0.85,
+        Visible = true,
         ZIndex = 1,
         Parent = main
     })
     make_corner(bg_img, 4)
 
-    -- Top glowing line (gamesense accent border)
+    -- Top glowing line (accent border)
     local top_accent = library:create("Frame", {
         Name = "TopAccent",
         Size = UDim2.new(1, 0, 0, 2),
         BackgroundColor3 = self.theme.accent,
         BorderSizePixel = 0,
-        ZIndex = 5,
+        ZIndex = 10,
         Parent = main
     })
     library:AddToRegistry(top_accent, { BackgroundColor = "AccentColor" })
 
-    -- Sidebar (Navigation verticale)
+    -- Sidebar (Navigation verticale sur la gauche avec Logo Box en haut)
     local sidebar = library:create("Frame", {
         Name = "Sidebar",
-        Size = UDim2.new(0, 44, 1, -2),
+        Size = UDim2.new(0, 52, 1, -2),
         Position = UDim2.new(0, 0, 0, 2),
-        BackgroundColor3 = self.theme.main_bg,
+        BackgroundColor3 = Color3.fromRGB(15, 14, 22),
         BorderSizePixel = 0,
-        ZIndex = 2,
+        ZIndex = 3,
         Parent = main
     })
     library:AddToRegistry(sidebar, { BackgroundColor = "BackgroundColor" })
 
+    -- Square Logo Box en haut de la Sidebar (comme sur la capture)
+    local logo_box = library:create("Frame", {
+        Name = "LogoBox",
+        Size = UDim2.new(1, 0, 0, 50),
+        BackgroundColor3 = Color3.fromRGB(12, 11, 18),
+        BorderSizePixel = 0,
+        LayoutOrder = 0,
+        ZIndex = 4,
+        Parent = sidebar
+    })
+
+    local raw_logo = cfg.Logo or cfg.logo or "135215559087473"
+    local logo_id = tostring(raw_logo)
+    if not logo_id:match("^rbxassetid://") and not logo_id:match("^rbxasset://") and not logo_id:match("^http") then
+        logo_id = "rbxassetid://" .. logo_id
+    end
+
+    local logo_img = library:create("ImageLabel", {
+        Name = "LogoImage",
+        Size = UDim2.new(0, 36, 0, 36),
+        Position = UDim2.new(0.5, -18, 0.5, -18),
+        BackgroundTransparency = 1,
+        Image = logo_id,
+        ImageColor3 = Color3.fromRGB(235, 230, 255),
+        ZIndex = 5,
+        Parent = logo_box
+    })
+
+    -- Séparateur sous le logo
+    local logo_sep = library:create("Frame", {
+        Name = "LogoSep",
+        Size = UDim2.new(1, -12, 0, 1),
+        Position = UDim2.new(0, 6, 1, -1),
+        BackgroundColor3 = self.theme.border_dark,
+        BorderSizePixel = 0,
+        ZIndex = 4,
+        Parent = logo_box
+    })
+
+    local tab_buttons_holder = library:create("Frame", {
+        Name = "TabButtonsHolder",
+        Size = UDim2.new(1, 0, 1, -52),
+        Position = UDim2.new(0, 0, 0, 52),
+        BackgroundTransparency = 1,
+        ZIndex = 3,
+        Parent = sidebar
+    })
+
     library:create("UIListLayout", {
-        Padding = UDim.new(0, 4),
+        Padding = UDim.new(0, 6),
         HorizontalAlignment = Enum.HorizontalAlignment.Center,
         SortOrder = Enum.SortOrder.LayoutOrder,
-        Parent = sidebar
+        Parent = tab_buttons_holder
     })
 
-    library:create("UIPadding", {
-        PaddingTop = UDim.new(0, 8),
-        Parent = sidebar
+    -- Zone supérieure de contenu avec Search Bar (comme sur la capture)
+    local top_search_bar = library:create("Frame", {
+        Name = "TopSearchBar",
+        Size = UDim2.new(1, -94, 0, 32),
+        Position = UDim2.new(0, 58, 0, 10),
+        BackgroundColor3 = Color3.fromRGB(26, 23, 38),
+        BorderSizePixel = 0,
+        ZIndex = 3,
+        Parent = main
+    })
+    make_corner(top_search_bar, 6)
+    make_stroke(top_search_bar, Color3.fromRGB(42, 38, 58), 1)
+
+    -- Icône Loupe
+    local search_icon = library:create("ImageLabel", {
+        Name = "SearchIcon",
+        Size = UDim2.new(0, 14, 0, 14),
+        Position = UDim2.new(0, 12, 0.5, -7),
+        BackgroundTransparency = 1,
+        Image = "rbxassetid://10709797288",
+        ImageColor3 = Color3.fromRGB(155, 145, 185),
+        ZIndex = 4,
+        Parent = top_search_bar
     })
 
-    -- Zone de contenu
+    -- Barre de séparation |
+    library:create("TextLabel", {
+        Name = "Divider",
+        Size = UDim2.new(0, 8, 1, 0),
+        Position = UDim2.new(0, 32, 0, 0),
+        BackgroundTransparency = 1,
+        FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal),
+        Text = "|",
+        TextColor3 = Color3.fromRGB(80, 75, 105),
+        TextSize = 13,
+        ZIndex = 4,
+        Parent = top_search_bar
+    })
+
+    -- Input Search
+    local search_input = library:create("TextBox", {
+        Name = "SearchInput",
+        Size = UDim2.new(1, -48, 1, 0),
+        Position = UDim2.new(0, 44, 0, 0),
+        BackgroundTransparency = 1,
+        FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.SemiBold, Enum.FontStyle.Normal),
+        PlaceholderText = "Search...",
+        PlaceholderColor3 = Color3.fromRGB(120, 115, 145),
+        Text = "",
+        TextColor3 = Color3.fromRGB(240, 240, 252),
+        TextSize = 12,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        ClearTextOnFocus = false,
+        ZIndex = 4,
+        Parent = top_search_bar
+    })
+
+    -- Close / Hide button sur le coin supérieur droit
+    local close_btn = library:create("TextButton", {
+        Name = "CloseButton",
+        Size = UDim2.new(0, 24, 0, 24),
+        Position = UDim2.new(1, -30, 0, 14),
+        BackgroundColor3 = Color3.fromRGB(24, 22, 34),
+        BorderSizePixel = 0,
+        FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.Bold, Enum.FontStyle.Normal),
+        Text = "✕",
+        TextColor3 = Color3.fromRGB(160, 155, 180),
+        TextSize = 12,
+        AutoButtonColor = false,
+        ZIndex = 5,
+        Parent = main
+    })
+    make_corner(close_btn, 4)
+    make_stroke(close_btn, self.theme.border_dark, 1)
+
+    close_btn.MouseButton1Click:Connect(function()
+        library:Toggle()
+    end)
+    close_btn.MouseEnter:Connect(function()
+        close_btn.TextColor3 = Color3.fromRGB(255, 80, 80)
+        close_btn.BackgroundColor3 = Color3.fromRGB(36, 26, 36)
+    end)
+    close_btn.MouseLeave:Connect(function()
+        close_btn.TextColor3 = Color3.fromRGB(160, 155, 180)
+        close_btn.BackgroundColor3 = Color3.fromRGB(24, 22, 34)
+    end)
+
+    -- Zone de contenu sous la Search Bar
     local content_holder = library:create("Frame", {
         Name = "Content",
-        Size = UDim2.new(1, -48, 1, -8),
-        Position = UDim2.new(0, 46, 0, 5),
+        Size = UDim2.new(1, -66, 1, -54),
+        Position = UDim2.new(0, 58, 0, 48),
         BackgroundTransparency = 1,
         ZIndex = 2,
         Parent = main
@@ -1608,6 +1746,7 @@ function library:window(cfg)
         screen = screen,
         sidebar = sidebar,
         content = content_holder,
+        search_input = search_input,
         background_image = bg_img,
         tabs = {},
         Tabs = {},
@@ -1616,6 +1755,33 @@ function library:window(cfg)
         DashboardTab = nil,
     }
     library.Window = window_obj
+
+    -- Live Search Filter sur l'onglet actif
+    local function apply_search_filter()
+        local query = search_input.Text:lower():gsub("^%s+", ""):gsub("%s+$", "")
+        if not window_obj.current_tab then return end
+        local active_page = window_obj.current_tab.page
+        if not active_page then return end
+
+        for _, descendant in ipairs(active_page:GetDescendants()) do
+            if descendant:IsA("TextButton") and descendant.Parent and descendant.Parent.Name == "Container" then
+                local row_text = descendant.Name:lower()
+                for _, child in ipairs(descendant:GetChildren()) do
+                    if child:IsA("TextLabel") and child.Text and child.Text ~= "" then
+                        row_text = row_text .. " " .. child.Text:lower()
+                    end
+                end
+
+                if query == "" or row_text:find(query, 1, true) then
+                    descendant.Visible = true
+                else
+                    descendant.Visible = false
+                end
+            end
+        end
+    end
+
+    search_input:GetPropertyChangedSignal("Text"):Connect(apply_search_filter)
 
     -- ==============================================================================
     -- DIALOG MODAL SYSTEM (pour SaveManager & ThemeManager)
@@ -1987,7 +2153,7 @@ function library:window(cfg)
             Text = "",
             AutoButtonColor = false,
             LayoutOrder = tab_order,
-            Parent = self.sidebar
+            Parent = (self.sidebar:FindFirstChild('TabButtonsHolder') or self.sidebar)
         })
         make_corner(tab_btn, 4)
 
@@ -2084,6 +2250,10 @@ function library:window(cfg)
 
             if not tab_obj.current_sub and #tab_obj.subtabs > 0 then
                 tab_obj.subtabs[1]:select()
+            end
+
+            if apply_search_filter and search_input and search_input.Text ~= "" then
+                pcall(apply_search_filter)
             end
         end
 
@@ -2353,51 +2523,46 @@ function library:window(cfg)
                         Text = "",
                         Name = text,
                         BackgroundTransparency = 1,
-                        Size = UDim2.new(1, 0, 0, 16),
+                        Size = UDim2.new(1, 0, 0, 22),
                         BorderSizePixel = 0,
                         AutoButtonColor = false
                     })
 
-                    local toggle_outline = library:create("Frame", {
+                    -- Grand Checkbox Agrandie (16x16)
+                    local toggle_box = library:create("Frame", {
                         Parent = obj,
-                        BackgroundTransparency = 1,
-                        Name = "Outline",
+                        Name = "ToggleBox",
+                        Size = UDim2.new(0, 16, 0, 16),
+                        Position = UDim2.new(0, 2, 0.5, -8),
+                        BorderSizePixel = 0,
+                        BackgroundColor3 = Color3.fromRGB(20, 20, 24)
+                    })
+                    make_corner(toggle_box, 3)
+                    local box_stroke = make_stroke(toggle_box, library.theme.border_dark, 1)
+
+                    -- Icône Checkmark
+                    local check_icon = library:create("ImageLabel", {
+                        Parent = toggle_box,
+                        Name = "CheckIcon",
                         Size = UDim2.new(0, 12, 0, 12),
-                        Position = UDim2.new(0, 0, 0.5, -6),
-                        BorderSizePixel = 0,
-                        BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-                    })
-
-                    local toggle_shading = library:create("Frame", {
-                        Parent = toggle_outline,
-                        Name = "Shading",
+                        Position = UDim2.new(0.5, -6, 0.5, -6),
                         BackgroundTransparency = 1,
-                        Position = UDim2.new(0, 1, 0, 1),
-                        Size = UDim2.new(1, -2, 1, -2),
-                        BorderSizePixel = 0,
-                        BackgroundColor3 = Color3.fromRGB(92, 92, 92)
-                    })
-
-                    local toggle_inline = library:create("Frame", {
-                        Parent = toggle_shading,
-                        Name = "Inline",
-                        Position = UDim2.new(0, 1, 0, 1),
-                        Size = UDim2.new(1, -2, 1, -2),
-                        BorderSizePixel = 0,
-                        BackgroundColor3 = Color3.fromRGB(54, 54, 54)
+                        Image = "rbxassetid://10709790644",
+                        ImageColor3 = Color3.fromRGB(255, 255, 255),
+                        Visible = false
                     })
 
                     local lbl = library:create("TextLabel", {
                         FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.SemiBold, Enum.FontStyle.Normal),
-                        TextColor3 = Color3.fromRGB(178, 178, 178),
+                        TextColor3 = Color3.fromRGB(178, 178, 185),
                         Text = text,
                         Parent = obj,
                         BackgroundTransparency = 1,
-                        Position = UDim2.new(0, 18, 0, 0),
-                        Size = UDim2.new(1, -20, 1, 0),
+                        Position = UDim2.new(0, 26, 0, 0),
+                        Size = UDim2.new(1, -80, 1, 0),
                         BorderSizePixel = 0,
                         TextXAlignment = Enum.TextXAlignment.Left,
-                        TextSize = 11,
+                        TextSize = 12,
                     })
 
                     local extra_container = library:create("Frame", {
@@ -2424,11 +2589,16 @@ function library:window(cfg)
                     local function set(bool)
                         state = bool
                         toggle_instance.Value = bool
-                        library:tween(lbl, {TextColor3 = bool and Color3.fromRGB(255, 255, 255) or Color3.fromRGB(178, 178, 178)})
-                        library:tween(toggle_outline, {BackgroundTransparency = bool and 0 or 1})
-                        library:tween(toggle_shading, {BackgroundTransparency = bool and 0 or 1})
-                        library:tween(toggle_inline, {BackgroundColor3 = bool and Color3.fromRGB(255, 255, 255) or Color3.fromRGB(74, 74, 74)})
-
+                        library:tween(lbl, {TextColor3 = bool and Color3.fromRGB(255, 255, 255) or Color3.fromRGB(178, 178, 185)})
+                        if bool then
+                            toggle_box.BackgroundColor3 = library.theme.accent
+                            box_stroke.Color = library.theme.accent
+                            check_icon.Visible = true
+                        else
+                            toggle_box.BackgroundColor3 = Color3.fromRGB(20, 20, 24)
+                            box_stroke.Color = library.theme.border_dark
+                            check_icon.Visible = false
+                        end
                         library.flags[flag] = bool
                         pcall(callback, bool)
                         toggle_instance:RunChanged()
@@ -3227,52 +3397,41 @@ function library:window(cfg)
                         hex_box.Text = "#" .. current_col:ToHex():upper() .. " • " .. string.format("%d, %d, %d", math.floor(current_col.R*255), math.floor(current_col.G*255), math.floor(current_col.B*255))
                     end
 
-                    local dragging_sv = false
-                    local dragging_hue = false
-
-                    local function update_sv(input)
-                        local pos = UserInputService:GetMouseLocation()
-                        local rx = math.clamp((pos.X - sv_map.AbsolutePosition.X) / sv_map.AbsoluteSize.X, 0, 1)
-                        local ry = math.clamp((pos.Y - sv_map.AbsolutePosition.Y) / sv_map.AbsoluteSize.Y, 0, 1)
-                        sat = rx
-                        vib = 1 - ry
-                        set(Color3.fromHSV(hue, sat, vib))
-                        update_popup_ui()
-                    end
-
-                    local function update_hue(input)
-                        local pos = UserInputService:GetMouseLocation()
-                        local ry = math.clamp((pos.Y - hue_bar.AbsolutePosition.Y) / hue_bar.AbsoluteSize.Y, 0, 1)
-                        hue = ry
-                        set(Color3.fromHSV(hue, sat, vib))
-                        update_popup_ui()
-                    end
-
+                    -- Accurate mouse synchronization via Mouse.X & Mouse.Y + RenderStepped
                     sv_map.InputBegan:Connect(function(input)
                         if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-                            dragging_sv = true
-                            update_sv(input)
+                            while UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton1) do
+                                local min_x = sv_map.AbsolutePosition.X
+                                local max_x = min_x + sv_map.AbsoluteSize.X
+                                local loc_x = math.clamp(Mouse.X, min_x, max_x)
+
+                                local min_y = sv_map.AbsolutePosition.Y
+                                local max_y = min_y + sv_map.AbsoluteSize.Y
+                                local loc_y = math.clamp(Mouse.Y, min_y, max_y)
+
+                                sat = (loc_x - min_x) / (max_x - min_x)
+                                vib = 1 - ((loc_y - min_y) / (max_y - min_y))
+
+                                set(Color3.fromHSV(hue, sat, vib))
+                                update_popup_ui()
+                                RunService.RenderStepped:Wait()
+                            end
                         end
                     end)
 
                     hue_bar.InputBegan:Connect(function(input)
                         if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-                            dragging_hue = true
-                            update_hue(input)
-                        end
-                    end)
+                            while UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton1) do
+                                local min_y = hue_bar.AbsolutePosition.Y
+                                local max_y = min_y + hue_bar.AbsoluteSize.Y
+                                local loc_y = math.clamp(Mouse.Y, min_y, max_y)
 
-                    library:connection(UserInputService.InputChanged, function(input)
-                        if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
-                            if dragging_sv then update_sv(input) end
-                            if dragging_hue then update_hue(input) end
-                        end
-                    end)
+                                hue = (loc_y - min_y) / (max_y - min_y)
 
-                    library:connection(UserInputService.InputEnded, function(input)
-                        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-                            dragging_sv = false
-                            dragging_hue = false
+                                set(Color3.fromHSV(hue, sat, vib))
+                                update_popup_ui()
+                                RunService.RenderStepped:Wait()
+                            end
                         end
                     end)
 
