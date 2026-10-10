@@ -406,17 +406,11 @@ function library:window(props)
     })
     library:create("UIPadding", { Parent = sidebar, PaddingTop = dim(0, 6) })
 
-    library:create("Frame", {
-        Parent = panel, BackgroundColor3 = themes.preset.border,
-        BorderSizePixel = 0, Position = dim2(0, icon_w, 0, header_h + 1),
-        Size = dim2(0, 1, 1, -(header_h + 1)), ZIndex = 3,
-    })
-
     -- CONTENT
     local content = library:create("Frame", {
         Parent = panel, BackgroundTransparency = 1,
-        Position = dim2(0, icon_w + 1, 0, header_h + 1),
-        Size = dim2(1, -(icon_w + 1), 1, -(header_h + 1)),
+        Position = dim2(0, icon_w, 0, header_h + 1),
+        Size = dim2(1, -icon_w, 1, -(header_h + 1)),
         BorderSizePixel = 0,
     })
 
