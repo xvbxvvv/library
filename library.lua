@@ -1006,27 +1006,17 @@ function library:window(cfg)
                 Name = "SubBtn_" .. sub_name,
                 AutomaticSize = Enum.AutomaticSize.X,
                 Size = UDim2.new(0, 24, 0, 20),
-                BackgroundColor3 = Color3.fromRGB(255, 255, 255),
-                BackgroundTransparency = 1,
+                BackgroundColor3 = library.theme.panel_bg,
+                BackgroundTransparency = 0,
                 BorderSizePixel = 0,
                 Font = Enum.Font.SourceSansBold,
                 Text = sub_label,
-                TextColor3 = library.theme.text_dim,
+                TextColor3 = Color3.fromRGB(200, 200, 200),
                 TextSize = 11,
                 AutoButtonColor = false,
                 Parent = subtab_bar
             })
             make_corner(sub_btn, 3)
-
-            library:create("UIGradient", {
-                Rotation = 90,
-                Parent = sub_btn,
-                Color = ColorSequence.new({
-                    ColorSequenceKeypoint.new(0, Color3.fromRGB(33, 33, 33)),
-                    ColorSequenceKeypoint.new(1, Color3.fromRGB(8, 8, 8))
-                })
-            })
-
             local sub_stroke = make_stroke(sub_btn, library.theme.border, 1)
             sub_stroke.Enabled = false
 
@@ -1084,8 +1074,8 @@ function library:window(cfg)
                     prev.active = false
                     if prev.stroke then prev.stroke.Enabled = false end
                     library:tween(prev.btn, {
-                        TextColor3 = library.theme.text_dim,
-                        BackgroundTransparency = 1
+                        TextColor3 = Color3.fromRGB(180, 180, 180),
+                        BackgroundColor3 = library.theme.panel_bg
                     }, nil, 0.15)
                 end
                 tab_obj.current_sub = sub_obj
@@ -1094,19 +1084,19 @@ function library:window(cfg)
                 sub_stroke.Enabled = true
                 library:tween(sub_btn, {
                     TextColor3 = Color3.fromRGB(255, 255, 255),
-                    BackgroundTransparency = 0
+                    BackgroundColor3 = Color3.fromRGB(8, 8, 8)
                 }, nil, 0.15)
             end
 
             sub_btn.MouseEnter:Connect(function()
                 if not sub_obj.active then
-                    library:tween(sub_btn, {TextColor3 = library.theme.text_dark}, nil, 0.12)
+                    library:tween(sub_btn, {TextColor3 = Color3.fromRGB(255, 255, 255)}, nil, 0.12)
                 end
             end)
 
             sub_btn.MouseLeave:Connect(function()
                 if not sub_obj.active then
-                    library:tween(sub_btn, {TextColor3 = library.theme.text_dim}, nil, 0.12)
+                    library:tween(sub_btn, {TextColor3 = Color3.fromRGB(180, 180, 180)}, nil, 0.12)
                 end
             end)
 
