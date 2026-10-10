@@ -3012,14 +3012,24 @@ function library:window(cfg)
                     local function update_position()
                         local outline_pos = dropdown_outline.AbsolutePosition
                         local outline_size = dropdown_outline.AbsoluteSize
+                        local main_pos = window_obj.main.AbsolutePosition
                         local count = #dropdown_instance.Values
                         local computed_height = math.clamp(count * 20 + 8, 26, 140)
                         local target_width = math.max(outline_size.X, 100)
 
-                        -- Toujours en dessous de dropdown_outline, ne calcule rien par rapport au bas
-                        dropdown_holder.Position = UDim2.new(0, outline_pos.X, 0, outline_pos.Y + outline_size.Y + 2)
+                        dropdown_holder.Parent = window_obj.main
+                        dropdown_holder.ZIndex = 500
+                        dropdown_holder.AnchorPoint = Vector2.new(0, 0)
+                        -- Toujours collé directement sous le bouton, déroulement vers le bas
+                        dropdown_holder.Position = UDim2.new(0, outline_pos.X - main_pos.X, 0, (outline_pos.Y - main_pos.Y) + outline_size.Y + 2)
                         return target_width, computed_height
                     end
+
+                    dropdown_outline:GetPropertyChangedSignal("AbsolutePosition"):Connect(function()
+                        if open then
+                            pcall(update_position)
+                        end
+                    end)
 
                     local function set_visible(bool)
                         if bool then
