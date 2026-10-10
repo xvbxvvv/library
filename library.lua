@@ -1485,6 +1485,7 @@ function library:window(cfg)
         Name = "GameSense_" .. math.random(1000, 9999),
         ResetOnSpawn = false,
         ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
+        IgnoreGuiInset = true,
         Parent = TargetGui
     })
     self.screen = screen
@@ -2610,7 +2611,6 @@ function library:window(cfg)
                 end
                 section_obj.Slider = section_obj.AddSlider
                 section_obj.slider = section_obj.AddSlider
-
                 -- =====================================================================
                 -- DROPDOWN (AddDropdown)
                 -- =====================================================================
@@ -2630,20 +2630,20 @@ function library:window(cfg)
                         Parent = scroll,
                         Name = text,
                         BackgroundTransparency = 1,
-                        Size = UDim2.new(1, 0, 0, 32),
+                        Size = UDim2.new(1, 0, 0, 34),
                         BorderSizePixel = 0,
                     })
 
-                    library:create("TextLabel", {
+                    local label_text = library:create("TextLabel", {
                         FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.SemiBold, Enum.FontStyle.Normal),
-                        TextColor3 = Color3.fromRGB(178, 178, 178),
+                        TextColor3 = Color3.fromRGB(180, 180, 185),
                         Text = text,
                         Parent = holder,
                         BackgroundTransparency = 1,
                         Position = UDim2.new(0, 0, 0, 0),
-                        Size = UDim2.new(1, 0, 0, 11),
+                        Size = UDim2.new(1, 0, 0, 12),
                         BorderSizePixel = 0,
-                        TextSize = 10,
+                        TextSize = 11,
                         TextXAlignment = Enum.TextXAlignment.Left,
                     })
 
@@ -2651,91 +2651,75 @@ function library:window(cfg)
                         Parent = holder,
                         Text = "",
                         AutoButtonColor = false,
-                        Position = UDim2.new(0, 0, 0, 13),
-                        Size = UDim2.new(1, 0, 0, 17),
+                        Position = UDim2.new(0, 0, 0, 14),
+                        Size = UDim2.new(1, 0, 0, 18),
                         BorderSizePixel = 0,
-                        BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+                        BackgroundColor3 = Color3.fromRGB(12, 12, 15)
                     })
-
-                    local dropdown_shading = library:create("Frame", {
-                        Parent = dropdown_outline,
-                        Size = UDim2.new(1, -2, 1, -2),
-                        Position = UDim2.new(0, 1, 0, 1),
-                        BorderSizePixel = 0,
-                        BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-                    })
-
-                    library:create("UIGradient", {
-                        Rotation = 90,
-                        Parent = dropdown_shading,
-                        Color = ColorSequence.new({
-                            ColorSequenceKeypoint.new(0, Color3.fromRGB(33, 33, 33)),
-                            ColorSequenceKeypoint.new(1, Color3.fromRGB(8, 8, 8))
-                        })
-                    })
+                    make_corner(dropdown_outline, 3)
+                    make_stroke(dropdown_outline, library.theme.border_dark, 1)
 
                     local inner_text = library:create("TextLabel", {
                         FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.SemiBold, Enum.FontStyle.Normal),
-                        TextColor3 = Color3.fromRGB(178, 178, 178),
+                        TextColor3 = Color3.fromRGB(220, 220, 225),
                         Text = "None",
-                        Parent = dropdown_shading,
-                        Size = UDim2.new(1, -18, 1, 0),
+                        Parent = dropdown_outline,
+                        Size = UDim2.new(1, -22, 1, 0),
                         Position = UDim2.new(0, 6, 0, 0),
                         BackgroundTransparency = 1,
                         BorderSizePixel = 0,
-                        TextSize = 10,
+                        TextSize = 11,
                         TextXAlignment = Enum.TextXAlignment.Left,
                     })
 
                     local arrow = library:create("ImageLabel", {
-                        ImageColor3 = Color3.fromRGB(178, 178, 178),
+                        ImageColor3 = Color3.fromRGB(180, 180, 185),
                         Parent = dropdown_outline,
                         AnchorPoint = Vector2.new(1, 0.5),
-                        Image = "rbxassetid://76667213487638",
+                        Image = "rbxassetid://10709790948",
                         BackgroundTransparency = 1,
-                        Position = UDim2.new(1, -5, 0.5, 0),
-                        Size = UDim2.new(0, 7, 0, 4),
+                        Position = UDim2.new(1, -6, 0.5, 0),
+                        Size = UDim2.new(0, 10, 0, 10),
                         BorderSizePixel = 0,
                     })
 
+                    -- Dropdown Popup Container
                     local dropdown_holder = library:create("Frame", {
+                        Name = "DropdownPopup_" .. tostring(flag),
                         Parent = window_obj.screen,
-                        Size = UDim2.new(0, 120, 0, 0),
+                        Size = UDim2.new(0, 120, 0, 100),
                         Visible = false,
-                        ZIndex = 150,
+                        ZIndex = 500,
                         BorderSizePixel = 0,
-                        AutomaticSize = Enum.AutomaticSize.Y,
-                        BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+                        BackgroundColor3 = Color3.fromRGB(18, 18, 22),
                     })
+                    make_corner(dropdown_holder, 4)
+                    make_stroke(dropdown_holder, library.theme.border_dark, 1)
 
-                    local pop_shading = library:create("Frame", {
+                    local options_scroll = library:create("ScrollingFrame", {
+                        Name = "OptionsScroll",
                         Parent = dropdown_holder,
-                        Size = UDim2.new(1, -2, 0, -2),
-                        Position = UDim2.new(0, 1, 0, 1),
+                        Size = UDim2.new(1, 0, 1, 0),
+                        BackgroundTransparency = 1,
                         BorderSizePixel = 0,
-                        AutomaticSize = Enum.AutomaticSize.Y,
-                        BackgroundColor3 = Color3.fromRGB(255, 255, 255),
-                        ZIndex = 151,
-                    })
-
-                    library:create("UIGradient", {
-                        Rotation = 90,
-                        Parent = pop_shading,
-                        Color = ColorSequence.new({
-                            ColorSequenceKeypoint.new(0, Color3.fromRGB(33, 33, 33)),
-                            ColorSequenceKeypoint.new(1, Color3.fromRGB(8, 8, 8))
-                        })
+                        ScrollBarThickness = 2,
+                        ScrollBarImageColor3 = library.theme.accent,
+                        AutomaticCanvasSize = Enum.AutomaticSize.Y,
+                        CanvasSize = UDim2.new(0, 0, 0, 0),
+                        ZIndex = 501,
                     })
 
                     library:create("UIListLayout", {
-                        Parent = pop_shading,
+                        Parent = options_scroll,
                         Padding = UDim.new(0, 2),
                         SortOrder = Enum.SortOrder.LayoutOrder,
                     })
                     library:create("UIPadding", {
-                        PaddingBottom = UDim.new(0, 4),
-                        PaddingTop = UDim.new(0, 4),
-                        Parent = pop_shading
+                        PaddingBottom = UDim.new(0, 3),
+                        PaddingTop = UDim.new(0, 3),
+                        PaddingLeft = UDim.new(0, 3),
+                        PaddingRight = UDim.new(0, 3),
+                        Parent = options_scroll
                     })
 
                     local dropdown_instance = {
@@ -2746,13 +2730,40 @@ function library:window(cfg)
                         ChangedCallbacks = {},
                     }
 
+                    local function update_position()
+                        local outline_pos = dropdown_outline.AbsolutePosition
+                        local outline_size = dropdown_outline.AbsoluteSize
+                        local count = #dropdown_instance.Values
+                        local computed_height = math.clamp(count * 20 + 6, 26, 140)
+                        dropdown_holder.Size = UDim2.new(0, math.max(outline_size.X, 100), 0, computed_height)
+
+                        local cam_y = (workspace.CurrentCamera and workspace.CurrentCamera.ViewportSize.Y) or 1000
+                        if outline_pos.Y + outline_size.Y + computed_height > cam_y - 15 then
+                            dropdown_holder.Position = UDim2.new(0, outline_pos.X, 0, outline_pos.Y - computed_height - 2)
+                        else
+                            dropdown_holder.Position = UDim2.new(0, outline_pos.X, 0, outline_pos.Y + outline_size.Y + 2)
+                        end
+                    end
+
                     local function set_visible(bool)
-                        open = bool
-                        dropdown_holder.Visible = bool
-                        arrow.Rotation = bool and 180 or 0
                         if bool then
-                            dropdown_holder.Size = UDim2.new(0, dropdown_outline.AbsoluteSize.X, 0, 0)
-                            dropdown_holder.Position = UDim2.new(0, dropdown_outline.AbsolutePosition.X, 0, dropdown_outline.AbsolutePosition.Y + dropdown_outline.AbsoluteSize.Y + 2)
+                            if library.ActiveDropdown and library.ActiveDropdown ~= dropdown_instance then
+                                pcall(function() library.ActiveDropdown:Close() end)
+                            end
+                            library.ActiveDropdown = dropdown_instance
+                            open = true
+                            update_position()
+                            dropdown_holder.Visible = true
+                            arrow.Rotation = 180
+                            make_stroke(dropdown_outline, library.theme.accent, 1)
+                        else
+                            open = false
+                            dropdown_holder.Visible = false
+                            arrow.Rotation = 0
+                            make_stroke(dropdown_outline, library.theme.border_dark, 1)
+                            if library.ActiveDropdown == dropdown_instance then
+                                library.ActiveDropdown = nil
+                            end
                         end
                     end
 
@@ -2760,18 +2771,56 @@ function library:window(cfg)
                         local selected = {}
                         local isTable = type(value) == "table"
 
-                        for _, option_btn in ipairs(option_instances) do
-                            if option_btn.Text == value or (isTable and table.find(value, option_btn.Text)) then
-                                table.insert(selected, option_btn.Text)
-                                multi_items = selected
-                                option_btn.TextColor3 = Color3.fromRGB(255, 255, 255)
-                            else
-                                option_btn.TextColor3 = Color3.fromRGB(150, 150, 150)
+                        if type(value) == "number" and dropdown_instance.Values[value] then
+                            value = dropdown_instance.Values[value]
+                        end
+
+                        if multi then
+                            if isTable then
+                                for k, v in pairs(value) do
+                                    if type(k) == "string" and v == true then
+                                        table.insert(selected, k)
+                                    elseif type(v) == "string" then
+                                        table.insert(selected, v)
+                                    end
+                                end
+                            elseif value ~= nil and tostring(value) ~= "" and tostring(value) ~= "None" then
+                                table.insert(selected, tostring(value))
+                            end
+                            multi_items = selected
+                        else
+                            if value ~= nil and tostring(value) ~= "" then
+                                table.insert(selected, tostring(value))
                             end
                         end
 
-                        local res = if isTable then selected else (selected[1] or tostring(value))
-                        inner_text.Text = if isTable then table.concat(selected, ", ") else tostring(res)
+                        for _, opt_btn in ipairs(option_instances) do
+                            local opt_name = opt_btn:GetAttribute("ItemValue") or opt_btn.Text
+                            local is_sel = false
+                            if multi then
+                                is_sel = table.find(multi_items, opt_name) ~= nil
+                            else
+                                is_sel = (selected[1] == opt_name)
+                            end
+                            if is_sel then
+                                opt_btn.TextColor3 = library.theme.accent
+                                opt_btn.BackgroundColor3 = Color3.fromRGB(28, 28, 34)
+                                opt_btn.BackgroundTransparency = 0
+                            else
+                                opt_btn.TextColor3 = Color3.fromRGB(180, 180, 185)
+                                opt_btn.BackgroundTransparency = 1
+                            end
+                        end
+
+                        local res
+                        if multi then
+                            res = multi_items
+                            inner_text.Text = #selected > 0 and table.concat(selected, ", ") or "None"
+                        else
+                            res = selected[1] or "None"
+                            inner_text.Text = tostring(res)
+                        end
+
                         dropdown_instance.Value = res
                         library.flags[flag] = res
                         pcall(callback, res)
@@ -2781,50 +2830,82 @@ function library:window(cfg)
                     local function refresh_options(list)
                         list = list or {}
                         dropdown_instance.Values = list
-                        for _, opt in ipairs(option_instances) do opt:Destroy() end
+                        for _, opt in ipairs(option_instances) do
+                            pcall(function() opt:Destroy() end)
+                        end
                         option_instances = {}
 
-                        for _, item_name in ipairs(list) do
+                        for idx, item_name in ipairs(list) do
+                            local item_str = tostring(item_name)
                             local opt_btn = library:create("TextButton", {
                                 FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.SemiBold, Enum.FontStyle.Normal),
-                                TextColor3 = Color3.fromRGB(178, 178, 178),
-                                Text = tostring(item_name),
-                                Parent = pop_shading,
-                                Size = UDim2.new(1, 0, 0, 15),
+                                TextColor3 = Color3.fromRGB(180, 180, 185),
+                                Text = "  " .. item_str,
+                                Parent = options_scroll,
+                                Size = UDim2.new(1, 0, 0, 18),
+                                BackgroundColor3 = Color3.fromRGB(25, 25, 30),
                                 BackgroundTransparency = 1,
-                                TextXAlignment = Enum.TextXAlignment.Center,
+                                TextXAlignment = Enum.TextXAlignment.Left,
                                 BorderSizePixel = 0,
-                                TextSize = 10,
-                                ZIndex = 152,
+                                TextSize = 11,
+                                AutoButtonColor = false,
+                                ZIndex = 502,
+                                LayoutOrder = idx
                             })
+                            make_corner(opt_btn, 2)
+                            opt_btn:SetAttribute("ItemValue", item_str)
                             table.insert(option_instances, opt_btn)
+
+                            opt_btn.MouseEnter:Connect(function()
+                                opt_btn.BackgroundTransparency = 0.4
+                                opt_btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+                            end)
+                            opt_btn.MouseLeave:Connect(function()
+                                local is_sel = (multi and table.find(multi_items, item_str)) or (not multi and dropdown_instance.Value == item_str)
+                                if is_sel then
+                                    opt_btn.TextColor3 = library.theme.accent
+                                    opt_btn.BackgroundColor3 = Color3.fromRGB(28, 28, 34)
+                                    opt_btn.BackgroundTransparency = 0
+                                else
+                                    opt_btn.TextColor3 = Color3.fromRGB(180, 180, 185)
+                                    opt_btn.BackgroundTransparency = 1
+                                end
+                            end)
 
                             opt_btn.MouseButton1Click:Connect(function()
                                 if multi then
-                                    local idx = table.find(multi_items, opt_btn.Text)
-                                    if idx then
-                                        table.remove(multi_items, idx)
+                                    local found = table.find(multi_items, item_str)
+                                    if found then
+                                        table.remove(multi_items, found)
                                     else
-                                        table.insert(multi_items, opt_btn.Text)
+                                        table.insert(multi_items, item_str)
                                     end
                                     set(multi_items)
                                 else
+                                    set(item_str)
                                     set_visible(false)
-                                    set(opt_btn.Text)
                                 end
                             end)
                         end
+
+                        if open then update_position() end
                     end
 
                     dropdown_outline.MouseButton1Click:Connect(function()
                         set_visible(not open)
                     end)
 
-                    library:connection(UserInputService.InputEnded, function(input)
+                    library:connection(UserInputService.InputBegan, function(input)
+                        if not open then return end
                         if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-                            if open and not (library:mouse_in_frame(dropdown_holder) or library:mouse_in_frame(dropdown_outline)) then
-                                set_visible(false)
-                            end
+                            task.defer(function()
+                                if not open then return end
+                                local in_btn = dropdown_outline and library:mouse_in_frame(dropdown_outline)
+                                local in_holder = dropdown_holder and library:mouse_in_frame(dropdown_holder)
+                                if not in_btn and not in_holder then
+                                    set_visible(false)
+                                end
+                            end)
                         end
                     end)
 
@@ -2834,6 +2915,19 @@ function library:window(cfg)
 
                     function dropdown_instance:SetValues(list)
                         refresh_options(list)
+                        if not multi then
+                            if not table.find(list, self.Value) then
+                                set(list[1] or "None")
+                            end
+                        end
+                    end
+
+                    function dropdown_instance:GetActiveValues(return_count)
+                        if multi then
+                            return return_count and #self.Value or self.Value
+                        else
+                            return self.Value
+                        end
                     end
 
                     function dropdown_instance:OnChanged(fn)
@@ -2850,6 +2944,30 @@ function library:window(cfg)
                         for _, fn in ipairs(self.ChangedCallbacks) do
                             pcall(fn, self.Value)
                         end
+                    end
+
+                    function dropdown_instance:SetVisible(vis)
+                        holder.Visible = vis
+                    end
+
+                    function dropdown_instance:SetDisabled(dis)
+                        dropdown_outline.Active = not dis
+                    end
+
+                    function dropdown_instance:SetText(t)
+                        label_text.Text = tostring(t)
+                    end
+
+                    function dropdown_instance:Display()
+                        return self.Value
+                    end
+
+                    function dropdown_instance:Close()
+                        set_visible(false)
+                    end
+
+                    function dropdown_instance:Open()
+                        set_visible(true)
                     end
 
                     refresh_options(items_list)
