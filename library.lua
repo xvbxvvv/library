@@ -283,14 +283,38 @@ local ESP_BONES_R6 = {
     {"Torso", "Left Leg"}, {"Torso", "Right Leg"},
 }
 
+-- Résout une source d'image :
+--   "123456789"                    -> rbxassetid://123456789
+--   "rbxassetid://..." / "rbxasset://..." -> tel quel
+--   "https://.../image.png" (raw)  -> téléchargé puis converti en asset local
+local function resolve_image(src)
+    if type(src) ~= "string" or src == "" then return "" end
+    if src:match("^%d+$") then return "rbxassetid://" .. src end
+    if src:match("^rbxassetid://") or src:match("^rbxasset://") or src:match("^rbxthumb://") then
+        return src
+    end
+    if src:match("^https?://") then
+        local ok, id = pcall(function()
+            local data = game:HttpGet(src)
+            local fname = "esp_preview_" .. tostring(math.random(1, 2147483647)) .. ".png"
+            writefile(fname, data)
+            local getasset = getcustomasset or getsynasset
+            return getasset(fname)
+        end)
+        if ok and type(id) == "string" and id ~= "" then return id end
+    end
+    return src
+end
+
 function library:BuildESPPreview(parent, options)
     options = options or {}
     local height = options.height or 200
     local esp_color = options.color or options.Color or library.theme.accent
     local player_name = options.player or options.Player or (LocalPlayer.Name or "Player")
+    local image_src = options.image or options.Image
 
     local show_char = options.character
-    if show_char == nil then show_char = true end
+    if show_char == nil then show_char = (image_src == nil) end
     local show_box = options.box
     if show_box == nil then show_box = true end
     local show_skel = options.skeleton
@@ -310,6 +334,20 @@ function library:BuildESPPreview(parent, options)
     make_corner(holder, 3)
     make_stroke(holder, library.theme.border_dark, 1)
 
+    -- Image custom (id Roblox ou URL raw), affichée derrière le personnage
+    local image_label = library:create("ImageLabel", {
+        Name = "CustomImage",
+        Size = UDim2.new(1, 0, 1, 0),
+        BackgroundTransparency = 1,
+        Image = image_src and resolve_image(image_src) or "",
+        ImageTransparency = options.image_transparency or 0,
+        ScaleType = Enum.ScaleType.Fit,
+        Visible = image_src ~= nil,
+        ZIndex = 1,
+        Parent = holder,
+    })
+    make_corner(image_label, 3)
+
     -- ViewportFrame : c'est ici qu'est rendu le personnage
     local viewport = library:create("ViewportFrame", {
         Name = "CharacterView",
@@ -317,8 +355,9 @@ function library:BuildESPPreview(parent, options)
         BackgroundTransparency = 1,
         BorderSizePixel = 0,
         LightColor = Color3.fromRGB(255, 255, 255),
-        LightDirection = Vector3.new(-1, -1, -1),
-        Ambient = Color3.fromRGB(150, 150, 150),
+        LightDirection = Vector3.new(-1, -0.6, -1),
+        Ambient = Color3.fromRGB(215, 215, 215),
+        ZIndex = 2,
         Parent = holder,
     })
     make_corner(viewport, 3)
@@ -387,15 +426,58 @@ function library:BuildESPPreview(parent, options)
         end
     end
 
+    -- Dummy de secours si le joueur n'a pas de personnage (évite un aperçu vide/noir)
+    local function build_dummy()
+        local model = Instance.new("Model")
+        model.Name = "Dummy"
+        local function mk(name, size, pos, color)
+            local p = Instance.new("Part")
+            p.Name = name
+            p.Size = size
+            p.Position = pos
+            p.Anchored = true
+            p.CanCollide = false
+            p.CanQuery = false
+            p.Material = Enum.Material.SmoothPlastic
+            p.Color = color
+            p.Transparency = 0.3
+            p.Parent = model
+            return p
+        end
+        local skin = Color3.fromRGB(224, 200, 138)
+        local cloth = Color3.fromRGB(58, 110, 168)
+        local pant = Color3.fromRGB(46, 46, 52)
+        mk("Head", Vector3.new(0.85, 0.85, 0.85), Vector3.new(0, 3.1, 0), skin)
+        mk("UpperTorso", Vector3.new(1.35, 1.0, 0.6), Vector3.new(0, 2.15, 0), cloth)
+        mk("LowerTorso", Vector3.new(1.25, 0.7, 0.6), Vector3.new(0, 1.3, 0), cloth)
+        mk("LeftUpperArm", Vector3.new(0.32, 0.85, 0.32), Vector3.new(-0.85, 2.15, 0), skin)
+        mk("RightUpperArm", Vector3.new(0.32, 0.85, 0.32), Vector3.new(0.85, 2.15, 0), skin)
+        mk("LeftLowerArm", Vector3.new(0.32, 0.8, 0.32), Vector3.new(-0.85, 1.32, 0), skin)
+        mk("RightLowerArm", Vector3.new(0.32, 0.8, 0.32), Vector3.new(0.85, 1.32, 0), skin)
+        mk("LeftHand", Vector3.new(0.34, 0.34, 0.34), Vector3.new(-0.85, 0.82, 0), skin)
+        mk("RightHand", Vector3.new(0.34, 0.34, 0.34), Vector3.new(0.85, 0.82, 0), skin)
+        mk("LeftUpperLeg", Vector3.new(0.4, 0.85, 0.4), Vector3.new(-0.33, 0.85, 0), pant)
+        mk("RightUpperLeg", Vector3.new(0.4, 0.85, 0.4), Vector3.new(0.33, 0.85, 0), pant)
+        mk("LeftLowerLeg", Vector3.new(0.4, 0.85, 0.4), Vector3.new(-0.33, 0.0, 0), pant)
+        mk("RightLowerLeg", Vector3.new(0.4, 0.85, 0.4), Vector3.new(0.33, 0.0, 0), pant)
+        mk("LeftFoot", Vector3.new(0.4, 0.28, 0.62), Vector3.new(-0.33, -0.55, 0.1), Color3.fromRGB(28, 28, 32))
+        mk("RightFoot", Vector3.new(0.4, 0.28, 0.62), Vector3.new(0.33, -0.55, 0.1), Color3.fromRGB(28, 28, 32))
+        return model
+    end
+
     local function render()
         clear_view()
         if not show_char then return end
 
-        local char = LocalPlayer.Character
-        if not char then return end
-
-        local ok, clone = pcall(function() return char:Clone() end)
-        if not (ok and clone) then return end
+        local clone
+        local char = LocalPlayer and LocalPlayer.Character
+        if char then
+            local ok, c = pcall(function() return char:Clone() end)
+            if ok then clone = c end
+        end
+        if not clone then
+            clone = build_dummy()
+        end
 
         for _, d in clone:GetDescendants() do
             if d:IsA("Script") or d:IsA("LocalScript") or d:IsA("ModuleScript") then
@@ -404,7 +486,7 @@ function library:BuildESPPreview(parent, options)
                 d.CanCollide = false
                 d.Anchored = true
                 d.LocalTransparencyModifier = 0
-                d.Transparency = math.max(d.Transparency, 0.5)
+                d.Transparency = math.max(d.Transparency, 0.38)
             end
         end
 
@@ -419,7 +501,7 @@ function library:BuildESPPreview(parent, options)
             clone:PivotTo(CFrame.new(-bcf.Position))
         end)
 
-        local dist = (bsize.Y * 0.5) / math.tan(math.rad(view_cam.FieldOfView * 0.5)) * 1.18
+        local dist = math.max((bsize.Y * 0.5) / math.tan(math.rad(view_cam.FieldOfView * 0.5)) * 1.18, 3)
         view_cam.CFrame = CFrame.lookAt(Vector3.new(0, 0, -dist), Vector3.new(0, 0, 0))
 
         -- Boîte ajustée à la carrure réelle
@@ -471,6 +553,15 @@ function library:BuildESPPreview(parent, options)
         set_character = function(v) show_char = v; render() end,
         set_health = function(v) health_bg.Visible = v end,
         set_name = function(v) name_label.Visible = v end,
+        set_image = function(src)
+            image_src = src
+            image_label.Image = resolve_image(src)
+            image_label.Visible = src ~= nil and src ~= ""
+            if src ~= nil and src ~= "" and options.character == nil then
+                show_char = false
+                render()
+            end
+        end,
         set_player = function(n) name_label.Text = n end,
         set_color = function(c) esp_color = c; box_stroke.Color = c; render() end,
         set_health_percent = function(p)
