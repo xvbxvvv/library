@@ -183,9 +183,9 @@ function library:UpdateTheme()
     library.theme.panel_bg = library.Scheme.MainColor
     library.theme.section_bg = library.Scheme.MainColor
     library.theme.element_bg = Color3.fromRGB(
-        math.clamp(math.floor(library.Scheme.MainColor.R * 255 + 5), 0, 255),
-        math.clamp(math.floor(library.Scheme.MainColor.G * 255 + 5), 0, 255),
-        math.clamp(math.floor(library.Scheme.MainColor.B * 255 + 5), 0, 255)
+        math.clamp(math.floor(library.Scheme.MainColor.R * 255 + 6), 0, 255),
+        math.clamp(math.floor(library.Scheme.MainColor.G * 255 + 6), 0, 255),
+        math.clamp(math.floor(library.Scheme.MainColor.B * 255 + 6), 0, 255)
     )
     library.theme.border = library.Scheme.OutlineColor
     library.theme.border_dark = Color3.fromRGB(
@@ -196,6 +196,7 @@ function library:UpdateTheme()
     library.theme.accent = library.Scheme.AccentColor
     library.theme.text = library.Scheme.FontColor
 
+    -- 1. Update Registry items
     for instance, data in pairs(library.Registry) do
         if instance and instance.Parent then
             pcall(function()
@@ -211,6 +212,48 @@ function library:UpdateTheme()
                     elseif schemeIndex == "FontColor" then
                         instance[prop] = library.Scheme.FontColor
                     end
+                end
+            end)
+        end
+    end
+
+    -- 2. Dynamically update Window hierarchy colors
+    if library.Window and library.Window.main then
+        local main = library.Window.main
+        main.BackgroundColor3 = library.Scheme.BackgroundColor
+        if library.Window.sidebar then
+            library.Window.sidebar.BackgroundColor3 = library.Scheme.BackgroundColor
+        end
+
+        for _, desc in ipairs(main:GetDescendants()) do
+            pcall(function()
+                if desc:IsA("UIStroke") then
+                    if desc.Name ~= "AccentStroke" then
+                        desc.Color = library.Scheme.OutlineColor
+                    else
+                        desc.Color = library.Scheme.AccentColor
+                    end
+                elseif desc:IsA("Frame") then
+                    if desc.Name:match("^Section_") or desc.Name:match("^Card_") or desc.Name == "WelcomeBanner" or desc.Name == "FriendsInner" then
+                        desc.BackgroundColor3 = library.Scheme.MainColor
+                    elseif desc.Name == "TopAccent" or desc.Name == "AccentLine" or desc.Name == "TopStripe" then
+                        desc.BackgroundColor3 = library.Scheme.AccentColor
+                    end
+                elseif desc:IsA("ScrollingFrame") then
+                    desc.ScrollBarImageColor3 = library.Scheme.AccentColor
+                end
+            end)
+        end
+    end
+
+    -- 3. Update theme in screen popups
+    if library.screen then
+        for _, desc in ipairs(library.screen:GetChildren()) do
+            pcall(function()
+                if desc.Name:match("^DropdownPopup_") or desc.Name:match("^ColorPickerPopup_") then
+                    desc.BackgroundColor3 = library.Scheme.MainColor
+                    local stroke = desc:FindFirstChildOfClass("UIStroke")
+                    if stroke then stroke.Color = library.Scheme.OutlineColor end
                 end
             end)
         end
@@ -2979,27 +3022,29 @@ function library:window(cfg)
                 end
                 section_obj.Dropdown = section_obj.AddDropdown
                 section_obj.dropdown = section_obj.AddDropdown
-
                 -- =====================================================================
                 -- COLORPICKER (AddColorPicker)
                 -- =====================================================================
                 function section_obj:_create_color_widget(parent_frame, flag, options)
                     local default_col = options.Default or options.default or options.color or options.Color or Color3.fromRGB(0, 215, 165)
                     local callback = options.Callback or options.callback or function() end
+                    local title = options.Title or options.title or options.Text or options.text or flag
 
                     local col_btn = library:create("TextButton", {
                         Parent = parent_frame,
-                        Size = UDim2.new(0, 18, 0, 10),
+                        Size = UDim2.new(0, 20, 0, 11),
                         BackgroundColor3 = default_col,
                         BorderSizePixel = 0,
                         Text = "",
                         AutoButtonColor = false,
                     })
                     make_corner(col_btn, 2)
-                    make_stroke(col_btn, library.theme.border, 1)
+                    make_stroke(col_btn, library.theme.border_dark, 1)
 
                     local current_col = default_col
                     local current_alpha = 0
+                    local hue, sat, vib = default_col:ToHSV()
+
                     local cp_instance = {
                         Value = default_col,
                         Transparency = 0,
@@ -3010,6 +3055,7 @@ function library:window(cfg)
                     local function set(c, alpha)
                         current_col = c
                         current_alpha = alpha or 0
+                        hue, sat, vib = c:ToHSV()
                         cp_instance.Value = c
                         cp_instance.Transparency = current_alpha
                         col_btn.BackgroundColor3 = c
@@ -3046,19 +3092,237 @@ function library:window(cfg)
                         end
                     end
 
-                    -- Modal Color Picker simple & rapide
-                    col_btn.MouseButton1Click:Connect(function()
-                        local modal = library.Window:AddDialog("ColorPicker_" .. flag, {
-                            Title = "Color Picker: " .. flag,
-                            Description = "Current Hex: #" .. current_col:ToHex(),
-                            FooterButtons = {
-                                Close = {
-                                    Title = "Done",
-                                    Variant = "Ghost",
-                                    Callback = function(d) d:Dismiss() end
-                                }
-                            }
-                        })
+                    -- Real Interactive Color Picker Popup
+                    local popup_open = false
+                    local cp_popup = library:create("Frame", {
+                        Name = "ColorPickerPopup_" .. tostring(flag),
+                        Size = UDim2.new(0, 194, 0, 180),
+                        BackgroundColor3 = Color3.fromRGB(20, 20, 24),
+                        BorderSizePixel = 0,
+                        Visible = false,
+                        ZIndex = 600,
+                        Parent = window_obj.screen
+                    })
+                    make_corner(cp_popup, 4)
+                    make_stroke(cp_popup, library.theme.border_dark, 1)
+
+                    -- Header
+                    local cp_header = library:create("Frame", {
+                        Size = UDim2.new(1, -12, 0, 20),
+                        Position = UDim2.new(0, 6, 0, 4),
+                        BackgroundTransparency = 1,
+                        Parent = cp_popup,
+                        ZIndex = 601
+                    })
+
+                    library:create("TextLabel", {
+                        Size = UDim2.new(1, -20, 1, 0),
+                        BackgroundTransparency = 1,
+                        FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.Bold, Enum.FontStyle.Normal),
+                        Text = tostring(title),
+                        TextColor3 = Color3.fromRGB(230, 230, 235),
+                        TextSize = 11,
+                        TextXAlignment = Enum.TextXAlignment.Left,
+                        Parent = cp_header,
+                        ZIndex = 601
+                    })
+
+                    local close_btn = library:create("TextButton", {
+                        Size = UDim2.new(0, 16, 0, 16),
+                        Position = UDim2.new(1, -16, 0.5, -8),
+                        BackgroundTransparency = 1,
+                        FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.Bold, Enum.FontStyle.Normal),
+                        Text = "x",
+                        TextColor3 = Color3.fromRGB(160, 160, 165),
+                        TextSize = 12,
+                        Parent = cp_header,
+                        ZIndex = 601
+                    })
+
+                    -- Saturation / Value Map
+                    local sv_map = library:create("ImageButton", {
+                        Name = "SVMap",
+                        Size = UDim2.new(0, 150, 0, 116),
+                        Position = UDim2.new(0, 6, 0, 26),
+                        BackgroundColor3 = Color3.fromHSV(hue, 1, 1),
+                        Image = "rbxassetid://4155801252",
+                        BorderSizePixel = 0,
+                        AutoButtonColor = false,
+                        Parent = cp_popup,
+                        ZIndex = 602
+                    })
+                    make_corner(sv_map, 3)
+
+                    local sv_cursor = library:create("Frame", {
+                        Size = UDim2.new(0, 6, 0, 6),
+                        AnchorPoint = Vector2.new(0.5, 0.5),
+                        Position = UDim2.new(sat, 0, 1 - vib, 0),
+                        BackgroundColor3 = Color3.fromRGB(255, 255, 255),
+                        BorderSizePixel = 0,
+                        Parent = sv_map,
+                        ZIndex = 603
+                    })
+                    make_corner(sv_cursor, 3)
+                    make_stroke(sv_cursor, Color3.fromRGB(0, 0, 0), 1)
+
+                    -- Hue Bar
+                    local hue_bar = library:create("ImageButton", {
+                        Name = "HueBar",
+                        Size = UDim2.new(0, 20, 0, 116),
+                        Position = UDim2.new(1, -26, 0, 26),
+                        BorderSizePixel = 0,
+                        BackgroundColor3 = Color3.fromRGB(255, 255, 255),
+                        AutoButtonColor = false,
+                        Parent = cp_popup,
+                        ZIndex = 602
+                    })
+                    make_corner(hue_bar, 3)
+                    make_stroke(hue_bar, library.theme.border_dark, 1)
+
+                    local hue_grad = library:create("UIGradient", {
+                        Rotation = 90,
+                        Color = ColorSequence.new({
+                            ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 0, 0)),
+                            ColorSequenceKeypoint.new(0.167, Color3.fromRGB(255, 255, 0)),
+                            ColorSequenceKeypoint.new(0.333, Color3.fromRGB(0, 255, 0)),
+                            ColorSequenceKeypoint.new(0.5, Color3.fromRGB(0, 255, 255)),
+                            ColorSequenceKeypoint.new(0.667, Color3.fromRGB(0, 0, 255)),
+                            ColorSequenceKeypoint.new(0.833, Color3.fromRGB(255, 0, 255)),
+                            ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 0, 0))
+                        }),
+                        Parent = hue_bar
+                    })
+
+                    local hue_cursor = library:create("Frame", {
+                        Size = UDim2.new(1, 2, 0, 2),
+                        AnchorPoint = Vector2.new(0.5, 0.5),
+                        Position = UDim2.new(0.5, 0, hue, 0),
+                        BackgroundColor3 = Color3.fromRGB(255, 255, 255),
+                        BorderSizePixel = 0,
+                        Parent = hue_bar,
+                        ZIndex = 603
+                    })
+                    make_stroke(hue_cursor, Color3.fromRGB(0, 0, 0), 1)
+
+                    -- Bottom Info & Hex Input
+                    local hex_box = library:create("TextBox", {
+                        Size = UDim2.new(1, -12, 0, 22),
+                        Position = UDim2.new(0, 6, 0, 148),
+                        BackgroundColor3 = Color3.fromRGB(14, 14, 18),
+                        BorderSizePixel = 0,
+                        FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.SemiBold, Enum.FontStyle.Normal),
+                        Text = "#" .. default_col:ToHex():upper() .. " • " .. string.format("%d, %d, %d", math.floor(default_col.R*255), math.floor(default_col.G*255), math.floor(default_col.B*255)),
+                        TextColor3 = Color3.fromRGB(200, 200, 205),
+                        TextSize = 11,
+                        Parent = cp_popup,
+                        ZIndex = 602
+                    })
+                    make_corner(hex_box, 3)
+                    make_stroke(hex_box, library.theme.border_dark, 1)
+
+                    local function update_popup_ui()
+                        sv_map.BackgroundColor3 = Color3.fromHSV(hue, 1, 1)
+                        sv_cursor.Position = UDim2.new(sat, 0, 1 - vib, 0)
+                        hue_cursor.Position = UDim2.new(0.5, 0, hue, 0)
+                        hex_box.Text = "#" .. current_col:ToHex():upper() .. " • " .. string.format("%d, %d, %d", math.floor(current_col.R*255), math.floor(current_col.G*255), math.floor(current_col.B*255))
+                    end
+
+                    local dragging_sv = false
+                    local dragging_hue = false
+
+                    local function update_sv(input)
+                        local pos = UserInputService:GetMouseLocation()
+                        local rx = math.clamp((pos.X - sv_map.AbsolutePosition.X) / sv_map.AbsoluteSize.X, 0, 1)
+                        local ry = math.clamp((pos.Y - sv_map.AbsolutePosition.Y) / sv_map.AbsoluteSize.Y, 0, 1)
+                        sat = rx
+                        vib = 1 - ry
+                        set(Color3.fromHSV(hue, sat, vib))
+                        update_popup_ui()
+                    end
+
+                    local function update_hue(input)
+                        local pos = UserInputService:GetMouseLocation()
+                        local ry = math.clamp((pos.Y - hue_bar.AbsolutePosition.Y) / hue_bar.AbsoluteSize.Y, 0, 1)
+                        hue = ry
+                        set(Color3.fromHSV(hue, sat, vib))
+                        update_popup_ui()
+                    end
+
+                    sv_map.InputBegan:Connect(function(input)
+                        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+                            dragging_sv = true
+                            update_sv(input)
+                        end
+                    end)
+
+                    hue_bar.InputBegan:Connect(function(input)
+                        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+                            dragging_hue = true
+                            update_hue(input)
+                        end
+                    end)
+
+                    library:connection(UserInputService.InputChanged, function(input)
+                        if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+                            if dragging_sv then update_sv(input) end
+                            if dragging_hue then update_hue(input) end
+                        end
+                    end)
+
+                    library:connection(UserInputService.InputEnded, function(input)
+                        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+                            dragging_sv = false
+                            dragging_hue = false
+                        end
+                    end)
+
+                    hex_box.FocusLost:Connect(function()
+                        local clean = hex_box.Text:gsub("#", ""):gsub("%s.*$", "")
+                        local ok, col = pcall(Color3.fromHex, clean)
+                        if ok and col then
+                            set(col)
+                            update_popup_ui()
+                        else
+                            update_popup_ui()
+                        end
+                    end)
+
+                    local function toggle_popup()
+                        popup_open = not popup_open
+                        cp_popup.Visible = popup_open
+                        if popup_open then
+                            local bpos = col_btn.AbsolutePosition
+                            local bsize = col_btn.AbsoluteSize
+                            local cam_y = (workspace.CurrentCamera and workspace.CurrentCamera.ViewportSize.Y) or 1000
+                            local pop_h = 180
+                            if bpos.Y + bsize.Y + pop_h > cam_y - 10 then
+                                cp_popup.Position = UDim2.new(0, bpos.X - 170, 0, bpos.Y - pop_h - 2)
+                            else
+                                cp_popup.Position = UDim2.new(0, bpos.X - 170, 0, bpos.Y + bsize.Y + 2)
+                            end
+                            update_popup_ui()
+                        end
+                    end
+
+                    col_btn.MouseButton1Click:Connect(toggle_popup)
+                    close_btn.MouseButton1Click:Connect(function()
+                        popup_open = false
+                        cp_popup.Visible = false
+                    end)
+
+                    library:connection(UserInputService.InputBegan, function(input)
+                        if not popup_open then return end
+                        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+                            task.defer(function()
+                                if not popup_open then return end
+                                local in_btn = col_btn and library:mouse_in_frame(col_btn)
+                                local in_popup = cp_popup and library:mouse_in_frame(cp_popup)
+                                if not in_btn and not in_popup then
+                                    popup_open = false
+                                    cp_popup.Visible = false
+                                end
+                            end)
+                        end
                     end)
 
                     set(default_col)
