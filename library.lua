@@ -18,6 +18,7 @@ local CoreGui: CoreGui                   = cloneref(game:GetService("CoreGui"))
 local RunService: RunService             = cloneref(game:GetService("RunService"))
 local GuiService: GuiService             = cloneref(game:GetService("GuiService"))
 local HttpService: HttpService           = cloneref(game:GetService("HttpService"))
+local MarketplaceService: MarketplaceService = cloneref(game:GetService("MarketplaceService"))
 
 local isfolder   = isfolder or function(_) return false end
 local isfile     = isfile or function(_) return false end
@@ -31,7 +32,28 @@ local LocalPlayer = Players.LocalPlayer or Players.PlayerAdded:Wait()
 local Mouse = LocalPlayer:GetMouse()
 local GuiInset = GuiService:GetGuiInset().Y
 
-local TargetGui = (pcall(function() return CoreGui end) and CoreGui) or LocalPlayer:WaitForChild("PlayerGui")
+local function resolve_gui_parent()
+    if gethui then
+        local ok, hui = pcall(gethui)
+        if ok and hui then return hui end
+    end
+    if syn and syn.protect_gui then
+        local folder = Instance.new("Folder")
+        pcall(syn.protect_gui, folder)
+        folder.Parent = CoreGui
+        return folder
+    end
+    local ok, res = pcall(function()
+        local test = Instance.new("Folder")
+        test.Name = "TestCore"
+        test.Parent = CoreGui
+        test:Destroy()
+        return CoreGui
+    end)
+    if ok and res then return res end
+    return LocalPlayer:WaitForChild("PlayerGui", 5) or LocalPlayer:FindFirstChildOfClass("PlayerGui")
+end
+local TargetGui = resolve_gui_parent()
 
 -- Registry and state tables
 local Labels   = {}
@@ -1590,19 +1612,24 @@ function library:window(cfg)
     end
     local window_size = cfg.size or cfg.Size or UDim2.new(0, 520, 0, 380)
 
-    for _, g in ipairs(TargetGui:GetChildren()) do
-        if g:IsA("ScreenGui") and g.Name:match("^GameSense_") then
-            g:Destroy()
+    pcall(function()
+        for _, g in ipairs(TargetGui:GetChildren()) do
+            if g:IsA("ScreenGui") and g.Name:match("^GameSense_") then
+                g:Destroy()
+            end
         end
-    end
+    end)
 
     local screen = library:create("ScreenGui", {
         Name = "GameSense_" .. math.random(1000, 9999),
         ResetOnSpawn = false,
         ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
         IgnoreGuiInset = true,
-        Parent = TargetGui
     })
+    if syn and syn.protect_gui then
+        pcall(syn.protect_gui, screen)
+    end
+    screen.Parent = TargetGui
     self.screen = screen
     self.ScreenGui = screen
 
@@ -1693,36 +1720,33 @@ function library:window(cfg)
     })
 
     local function resolve_logo(logo_input)
-        local target_url = "https://raw.githubusercontent.com/xvbxvvv/logo/main/0fb782bd-42a8-46bd-8a52-7df5bee0812a.jpg"
-        local alt_url = "https://github.com/xvbxvvv/logo/blob/main/0fb782bd-42a8-46bd-8a52-7df5bee0812a.jpg?raw=true"
         local fallback_rbx = "rbxassetid://135215559087473"
-        local filename = "ezwin_logo_0fb782bd.jpg"
 
         if type(logo_input) == "number" or (type(logo_input) == "string" and logo_input:match("^%d+$")) then
             return "rbxassetid://" .. tostring(logo_input)
         elseif type(logo_input) == "string" and (logo_input:match("^rbxassetid://") or logo_input:match("^rbxasset://")) then
             return logo_input
-        elseif type(logo_input) == "string" and logo_input:match("^https?://") then
-            target_url = logo_input
         end
 
-        local getcustomasset = getcustomasset or getsynasset or (Drawing and Drawing.GetAsset) or customasset
-        if getcustomasset and writefile and isfile and readfile then
-            if not isfile(filename) then
-                local success, data = pcall(game.HttpGet, game, target_url)
-                if not success or not data or #data == 0 then
-                    success, data = pcall(game.HttpGet, game, alt_url)
+        local ok, asset = pcall(function()
+            local getasset = getcustomasset or getsynasset or customasset
+            if getasset and writefile and isfile and readfile then
+                local filename = "ezwin_logo.png"
+                if not isfile(filename) then
+                    local target_url = "https://raw.githubusercontent.com/xvbxvvv/logo/main/0fb782bd-42a8-46bd-8a52-7df5bee0812a.jpg"
+                    local s, d = pcall(game.HttpGet, game, target_url)
+                    if s and d and #d > 0 then
+                        pcall(writefile, filename, d)
+                    end
                 end
-                if success and data and #data > 0 then
-                    pcall(writefile, filename, data)
-                end
-            end
-            if isfile(filename) then
-                local ok, asset = pcall(getcustomasset, filename)
-                if ok and asset then
-                    return asset
+                if isfile(filename) then
+                    return getasset(filename)
                 end
             end
+        end)
+
+        if ok and type(asset) == "string" and asset ~= "" then
+            return asset
         end
 
         return fallback_rbx
