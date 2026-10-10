@@ -84,9 +84,63 @@ local library = {
         text        = Color3.fromRGB(235, 235, 245),
         text_dark   = Color3.fromRGB(150, 145, 175),
         text_dim    = Color3.fromRGB(100, 95, 125),
-    }
+    },
+
+    ThemeGradients = {
+        ["Electric Violet"] = { Color3.fromRGB(16, 12, 28), Color3.fromRGB(28, 15, 48) },
+        ["Cyber Matrix"]   = { Color3.fromRGB(7, 16, 11),  Color3.fromRGB(12, 32, 20) },
+        ["Default"]        = { Color3.fromRGB(18, 18, 22), Color3.fromRGB(10, 26, 22) },
+        ["BBot"]           = { Color3.fromRGB(28, 26, 32), Color3.fromRGB(22, 16, 28) },
+        ["Fatality"]       = { Color3.fromRGB(24, 18, 48), Color3.fromRGB(42, 14, 38) },
+        ["Jester"]         = { Color3.fromRGB(26, 22, 28), Color3.fromRGB(38, 18, 28) },
+        ["Mint"]           = { Color3.fromRGB(22, 28, 26), Color3.fromRGB(16, 34, 28) },
+        ["Tokyo Night"]    = { Color3.fromRGB(20, 20, 32), Color3.fromRGB(32, 24, 52) },
+        ["Ubuntu"]         = { Color3.fromRGB(36, 30, 30), Color3.fromRGB(48, 22, 14) },
+        ["Quartz"]         = { Color3.fromRGB(22, 24, 34), Color3.fromRGB(24, 36, 48) },
+        ["Nord"]           = { Color3.fromRGB(42, 48, 60), Color3.fromRGB(32, 38, 48) },
+        ["Dracula"]        = { Color3.fromRGB(34, 32, 48), Color3.fromRGB(48, 28, 52) },
+        ["Monokai"]        = { Color3.fromRGB(28, 28, 24), Color3.fromRGB(38, 22, 30) },
+        ["Gruvbox"]        = { Color3.fromRGB(36, 34, 30), Color3.fromRGB(44, 26, 22) },
+        ["Solarized"]      = { Color3.fromRGB(6, 40, 50),  Color3.fromRGB(0, 24, 32) },
+        ["Catppuccin"]     = { Color3.fromRGB(28, 26, 42), Color3.fromRGB(44, 28, 48) },
+        ["One Dark"]       = { Color3.fromRGB(28, 32, 40), Color3.fromRGB(40, 28, 48) },
+        ["Cyberpunk"]      = { Color3.fromRGB(24, 20, 42), Color3.fromRGB(12, 38, 30) },
+        ["Oceanic Next"]   = { Color3.fromRGB(20, 32, 38), Color3.fromRGB(16, 26, 36) },
+        ["Material"]       = { Color3.fromRGB(20, 22, 26), Color3.fromRGB(24, 30, 44) },
+    },
+    current_theme_name = "Electric Violet",
 }
 library.__index = library
+
+function library:GetThemeGradient(scheme, theme_name)
+    if theme_name and self.ThemeGradients[theme_name] then
+        local pair = self.ThemeGradients[theme_name]
+        return ColorSequence.new({
+            ColorSequenceKeypoint.new(0, pair[1]),
+            ColorSequenceKeypoint.new(1, pair[2]),
+        })
+    end
+
+    scheme = scheme or self.Scheme
+    local bg = scheme.BackgroundColor or Color3.fromRGB(13, 11, 20)
+    local accent = scheme.AccentColor or Color3.fromRGB(157, 92, 255)
+
+    local c1 = Color3.fromRGB(
+        math.clamp(math.floor(bg.R * 255 * 1.05 + 2), 0, 255),
+        math.clamp(math.floor(bg.G * 255 * 1.05 + 2), 0, 255),
+        math.clamp(math.floor(bg.B * 255 * 1.05 + 2), 0, 255)
+    )
+    local c2 = Color3.fromRGB(
+        math.clamp(math.floor(bg.R * 255 * 0.65 + accent.R * 255 * 0.16), 0, 255),
+        math.clamp(math.floor(bg.G * 255 * 0.65 + accent.G * 255 * 0.16), 0, 255),
+        math.clamp(math.floor(bg.B * 255 * 0.65 + accent.B * 255 * 0.16), 0, 255)
+    )
+
+    return ColorSequence.new({
+        ColorSequenceKeypoint.new(0, c1),
+        ColorSequenceKeypoint.new(1, c2),
+    })
+end
 
 -- ==============================================================================
 -- HELPERS & UTILITY
@@ -217,10 +271,12 @@ function library:UpdateTheme()
         end
     end
 
-    -- 2. Dynamically update Window hierarchy colors
+    -- 2. Dynamically update Window hierarchy colors and background gradient
     if library.Window and library.Window.main then
         local main = library.Window.main
-        main.BackgroundColor3 = library.Scheme.BackgroundColor
+        if library.Window.bg_gradient then
+            library.Window.bg_gradient.Color = library:GetThemeGradient(library.Scheme, library.current_theme_name)
+        end
         if library.Window.sidebar then
             library.Window.sidebar.BackgroundColor3 = library.Scheme.BackgroundColor
         end
@@ -1027,6 +1083,8 @@ end
 
 function ThemeManager:ApplyTheme(name)
     if not name or name == "" then return false end
+    local lib = ThemeManager.Library or library
+    lib.current_theme_name = name
     local custom = ThemeManager:GetCustomTheme(name)
     if custom then
         return ThemeManager:ApplyThemeData(custom)
@@ -1523,7 +1581,10 @@ end
 
 function library:window(cfg)
     cfg = cfg or {}
-    local window_name = cfg.Title or cfg.name or cfg.Name or "gamesense"
+    local window_name = cfg.Title or cfg.name or cfg.Name or "ezwin.cc"
+    if window_name == "gamesense" or window_name == "" then
+        window_name = "ezwin.cc"
+    end
     local window_size = cfg.size or cfg.Size or UDim2.new(0, 520, 0, 380)
 
     for _, g in ipairs(TargetGui:GetChildren()) do
@@ -1547,12 +1608,32 @@ function library:window(cfg)
         Size = window_size,
         Position = UDim2.new(0.5, -window_size.X.Offset / 2, 0.5, -window_size.Y.Offset / 2),
         BackgroundColor3 = self.theme.main_bg,
+        BackgroundTransparency = 1,
         BorderSizePixel = 0,
         Parent = screen
     })
     make_corner(main, 4)
     make_stroke(main, self.theme.border, 1)
     make_draggable(main)
+
+    -- Background frame avec gradient dédié (totalement isolé pour ne toucher AUCUNE écriture)
+    local menu_bg = library:create("Frame", {
+        Name = "MenuBackground",
+        Size = UDim2.new(1, 0, 1, 0),
+        Position = UDim2.new(0, 0, 0, 0),
+        BackgroundColor3 = Color3.fromRGB(255, 255, 255),
+        BorderSizePixel = 0,
+        ZIndex = 0,
+        Parent = main
+    })
+    make_corner(menu_bg, 4)
+
+    local menu_bg_gradient = library:create("UIGradient", {
+        Name = "MenuBackgroundGradient",
+        Rotation = 45,
+        Color = self:GetThemeGradient(self.Scheme, self.current_theme_name),
+        Parent = menu_bg
+    })
 
     local default_bg = cfg.BackgroundImage or cfg.background or library.Scheme.BackgroundImage
     if not default_bg or default_bg == "" then
@@ -1686,42 +1767,25 @@ function library:window(cfg)
         Parent = tab_buttons_holder
     })
 
-    -- Titre "ezwin.cc" avec accentuation cyber
+    -- Titre "ezwin.cc" natif sans contour ni boîte (appartenant directement au menu)
     local raw_title = cfg.Title or cfg.name or cfg.Name or "ezwin.cc"
-    local title_prefix, title_suffix = raw_title:match("^(.-)(%..+)$")
-    if not title_prefix then
-        title_prefix = raw_title
-        title_suffix = ""
+    if raw_title == "gamesense" or raw_title == "" then
+        raw_title = "ezwin.cc"
     end
-
-    local title_badge = library:create("Frame", {
-        Name = "TitleBadge",
-        Size = UDim2.new(0, 88, 0, 32),
-        Position = UDim2.new(0, 58, 0, 10),
-        BackgroundColor3 = Color3.fromRGB(20, 17, 30),
-        BorderSizePixel = 0,
-        ZIndex = 3,
-        Parent = main
-    })
-    make_corner(title_badge, 6)
-    make_stroke(title_badge, Color3.fromRGB(42, 38, 58), 1)
 
     local title_label = library:create("TextLabel", {
         Name = "TitleLabel",
-        Size = UDim2.new(1, 0, 1, 0),
+        Size = UDim2.new(0, 85, 0, 32),
+        Position = UDim2.new(0, 60, 0, 10),
         BackgroundTransparency = 1,
         FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.Bold, Enum.FontStyle.Normal),
-        RichText = true,
-        Text = '<font color="#FFFFFF">' .. title_prefix .. '</font><font color="#' .. self.theme.accent:ToHex() .. '">' .. title_suffix .. '</font>',
-        TextSize = 14,
+        Text = raw_title,
+        TextColor3 = Color3.fromRGB(255, 255, 255),
+        TextSize = 15,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        TextYAlignment = Enum.TextYAlignment.Center,
         ZIndex = 4,
-        Parent = title_badge
-    })
-
-    library:AddToRegistry(title_label, {
-        Text = function()
-            return '<font color="#FFFFFF">' .. title_prefix .. '</font><font color="#' .. library.theme.accent:ToHex() .. '">' .. title_suffix .. '</font>'
-        end
+        Parent = main
     })
 
     -- Zone supérieure de contenu avec Search Bar (placée à droite du titre)
@@ -1823,11 +1887,14 @@ function library:window(cfg)
 
     local window_obj = {
         main = main,
+        menu_bg = menu_bg,
+        bg_gradient = menu_bg_gradient,
         screen = screen,
         sidebar = sidebar,
         content = content_holder,
         search_input = search_input,
         background_image = bg_img,
+        title_label = title_label,
         tabs = {},
         Tabs = {},
         current_tab = nil,
