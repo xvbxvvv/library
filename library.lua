@@ -277,6 +277,9 @@ function library:UpdateTheme()
         if library.Window.bg_gradient then
             library.Window.bg_gradient.Color = library:GetThemeGradient(library.Scheme, library.current_theme_name)
         end
+        if library.Window.title_label then
+            library.Window.title_label.Text = '<font color="#FFFFFF">ezwin</font><font color="#' .. library.Scheme.AccentColor:ToHex() .. '">.cc</font>'
+        end
         if library.Window.sidebar then
             library.Window.sidebar.BackgroundColor3 = library.Scheme.BackgroundColor
         end
@@ -1767,23 +1770,68 @@ function library:window(cfg)
         Parent = tab_buttons_holder
     })
 
-    -- Titre "ezwin.cc" natif sans contour ni boîte (appartenant directement au menu)
+    -- Titre "ezwin.cc" épuré et stylisé (simple mais beau, sans contour ni boîte)
     local raw_title = cfg.Title or cfg.name or cfg.Name or "ezwin.cc"
     if raw_title == "gamesense" or raw_title == "" then
         raw_title = "ezwin.cc"
     end
 
-    local title_label = library:create("TextLabel", {
-        Name = "TitleLabel",
+    local title_prefix, title_suffix = raw_title:match("^(.-)(%..+)$")
+    if not title_prefix then
+        title_prefix = raw_title
+        title_suffix = ""
+    end
+
+    local title_container = library:create("Frame", {
+        Name = "TitleContainer",
         Size = UDim2.new(0, 85, 0, 32),
         Position = UDim2.new(0, 60, 0, 10),
         BackgroundTransparency = 1,
+        BorderSizePixel = 0,
+        ZIndex = 4,
+        Parent = main
+    })
+
+    -- Ombre ambiante douce pour un rendu net et premium
+    local title_shadow = library:create("TextLabel", {
+        Name = "TitleShadow",
+        Size = UDim2.new(1, 0, 1, 0),
+        Position = UDim2.new(0, 1, 0, 1),
+        BackgroundTransparency = 1,
         FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.Bold, Enum.FontStyle.Normal),
-        Text = raw_title,
-        TextColor3 = Color3.fromRGB(255, 255, 255),
+        RichText = true,
+        Text = '<font color="#000000">' .. title_prefix .. title_suffix .. '</font>',
+        TextTransparency = 0.65,
         TextSize = 15,
         TextXAlignment = Enum.TextXAlignment.Left,
         TextYAlignment = Enum.TextYAlignment.Center,
+        ZIndex = 4,
+        Parent = title_container
+    })
+
+    -- Texte principal avec .cc en couleur accentuée du thème
+    local title_label = library:create("TextLabel", {
+        Name = "TitleLabel",
+        Size = UDim2.new(1, 0, 1, 0),
+        Position = UDim2.new(0, 0, 0, 0),
+        BackgroundTransparency = 1,
+        FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.Bold, Enum.FontStyle.Normal),
+        RichText = true,
+        Text = '<font color="#FFFFFF">' .. title_prefix .. '</font><font color="#' .. self.theme.accent:ToHex() .. '">' .. title_suffix .. '</font>',
+        TextSize = 15,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        TextYAlignment = Enum.TextYAlignment.Center,
+        ZIndex = 5,
+        Parent = title_container
+    })
+
+    -- Séparateur vertical minimaliste
+    local title_sep = library:create("Frame", {
+        Name = "TitleSep",
+        Size = UDim2.new(0, 1, 0, 16),
+        Position = UDim2.new(0, 142, 0, 18),
+        BackgroundColor3 = self.theme.border_dark,
+        BorderSizePixel = 0,
         ZIndex = 4,
         Parent = main
     })
@@ -2043,43 +2091,48 @@ function library:window(cfg)
         return dialog_obj
     end
 
-    -- Watermark (gamesense)
+    -- Watermark (gamesense style)
     function window_obj:watermark(wcfg)
         wcfg = wcfg or {}
-        local text = wcfg.name or wcfg.text or "gamesense | user | 60 fps"
+        local tag_name = wcfg.name or wcfg.text or "ezwin.cc"
+        if tag_name:lower():match("^gamesense") then
+            tag_name = tag_name:gsub("^gamesense", "ezwin.cc"):gsub("^GameSense", "ezwin.cc")
+        end
+
         local wm = library:create("Frame", {
             Name = "Watermark",
             AutomaticSize = Enum.AutomaticSize.X,
-            Size = UDim2.new(0, 0, 0, 18),
+            Size = UDim2.new(0, 0, 0, 20),
             Position = UDim2.new(0, 20, 0, 20),
-            BackgroundColor3 = library.theme.panel_bg,
+            BackgroundColor3 = Color3.fromRGB(15, 13, 22),
             BorderSizePixel = 0,
             Parent = screen
         })
-        make_corner(wm, 3)
+        make_corner(wm, 4)
         make_stroke(wm, library.theme.border, 1)
         make_draggable(wm)
 
         local top_stripe = library:create("Frame", {
-            Size = UDim2.new(1, 0, 0, 1),
+            Size = UDim2.new(1, 0, 0, 2),
             BackgroundColor3 = library.theme.accent,
-            BackgroundTransparency = 0,
+            BorderSizePixel = 0,
             Parent = wm
         })
         library:AddToRegistry(top_stripe, { BackgroundColor = "AccentColor" })
+        make_corner(top_stripe, 2)
 
         library:create("UIPadding", {
-            PaddingLeft = UDim.new(0, 8),
-            PaddingRight = UDim.new(0, 8),
+            PaddingLeft = UDim.new(0, 9),
+            PaddingRight = UDim.new(0, 9),
             Parent = wm
         })
 
         local lbl = library:create("TextLabel", {
             Size = UDim2.new(1, 0, 1, 0),
             BackgroundTransparency = 1,
-            Font = Enum.Font.SourceSansBold,
-            Text = "GameSense | " .. (LocalPlayer.DisplayName or LocalPlayer.Name) .. " | 00:00 | 60 fps",
-            TextColor3 = library.theme.text,
+            FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.Bold, Enum.FontStyle.Normal),
+            Text = tag_name .. " | " .. (LocalPlayer.DisplayName or LocalPlayer.Name) .. " | 00:00 | 60 fps",
+            TextColor3 = Color3.fromRGB(240, 240, 250),
             TextSize = 11,
             Parent = wm
         })
@@ -2092,7 +2145,7 @@ function library:window(cfg)
                 local date = os.date("*t")
                 local h = string.format("%02d:%02d", date.hour, date.min)
                 local fps = math.floor(frames / (tick() - last))
-                lbl.Text = "GameSense | " .. (LocalPlayer.DisplayName or LocalPlayer.Name) .. " | " .. h .. " | " .. fps .. " fps"
+                lbl.Text = tag_name .. " | " .. (LocalPlayer.DisplayName or LocalPlayer.Name) .. " | " .. h .. " | " .. fps .. " fps"
                 frames = 0
                 last = tick()
             end
@@ -2104,75 +2157,189 @@ function library:window(cfg)
         }
     end
 
-    -- Floating window
+    -- Floating window (Feature list / Keybinds widget sleek style)
     function window_obj:floating(fcfg)
         fcfg = fcfg or {}
-        local title = fcfg.title or "Features"
-        local size = fcfg.size or UDim2.new(0, 160, 0, 140)
-        local pos = fcfg.position or UDim2.new(0.5, -345, 0.5, 0)
+        local title = fcfg.title or "Active Features"
+        local initial_width = (fcfg.size and fcfg.size.X.Offset > 0 and fcfg.size.X.Offset) or 165
+        local initial_pos = fcfg.position or UDim2.new(0.5, -345, 0.5, 40)
 
         local fw = library:create("Frame", {
             Name = "FloatingFeatures",
-            Size = size,
-            Position = pos,
-            BackgroundColor3 = library.theme.main_bg,
+            Size = UDim2.new(0, initial_width, 0, 0),
+            Position = initial_pos,
+            BackgroundColor3 = Color3.fromRGB(15, 13, 22),
             BorderSizePixel = 0,
+            AutomaticSize = Enum.AutomaticSize.Y,
+            ZIndex = 20,
             Parent = screen
         })
-        make_corner(fw, 3)
+        make_corner(fw, 5)
         make_stroke(fw, library.theme.border, 1)
         make_draggable(fw)
 
-        local header = library:create("Frame", {
-            Size = UDim2.new(1, 0, 0, 20),
-            BackgroundColor3 = library.theme.panel_bg,
+        -- Top Glowing Accent line
+        local top_stripe = library:create("Frame", {
+            Name = "TopAccent",
+            Size = UDim2.new(1, 0, 0, 2),
+            Position = UDim2.new(0, 0, 0, 0),
+            BackgroundColor3 = library.theme.accent,
             BorderSizePixel = 0,
+            ZIndex = 22,
             Parent = fw
         })
-        make_corner(header, 3)
+        library:AddToRegistry(top_stripe, { BackgroundColor = "AccentColor" })
+        make_corner(top_stripe, 2)
 
-        library:create("TextLabel", {
-            Size = UDim2.new(1, 0, 1, 0),
+        -- Sleek Header
+        local header = library:create("Frame", {
+            Name = "Header",
+            Size = UDim2.new(1, 0, 0, 24),
+            Position = UDim2.new(0, 0, 0, 2),
+            BackgroundColor3 = Color3.fromRGB(20, 17, 30),
+            BorderSizePixel = 0,
+            ZIndex = 21,
+            Parent = fw
+        })
+
+        -- Glowing Status Pulse Dot
+        local status_dot = library:create("Frame", {
+            Name = "StatusDot",
+            Size = UDim2.new(0, 6, 0, 6),
+            Position = UDim2.new(0, 9, 0.5, -3),
+            BackgroundColor3 = library.theme.accent,
+            BorderSizePixel = 0,
+            ZIndex = 22,
+            Parent = header
+        })
+        make_corner(status_dot, 3)
+        library:AddToRegistry(status_dot, { BackgroundColor = "AccentColor" })
+
+        local title_lbl = library:create("TextLabel", {
+            Name = "Title",
+            Size = UDim2.new(1, -26, 1, 0),
+            Position = UDim2.new(0, 20, 0, 0),
             BackgroundTransparency = 1,
-            Font = Enum.Font.SourceSansBold,
+            FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.Bold, Enum.FontStyle.Normal),
             Text = title,
-            TextColor3 = library.theme.text,
+            TextColor3 = Color3.fromRGB(240, 240, 250),
             TextSize = 11,
-            Parent = header,
-            TextXAlignment = Enum.TextXAlignment.Center
+            TextXAlignment = Enum.TextXAlignment.Left,
+            ZIndex = 22,
+            Parent = header
         })
 
+        -- Header divider
+        local header_sep = library:create("Frame", {
+            Name = "Sep",
+            Size = UDim2.new(1, 0, 0, 1),
+            Position = UDim2.new(0, 0, 1, -1),
+            BackgroundColor3 = library.theme.border_dark,
+            BorderSizePixel = 0,
+            ZIndex = 21,
+            Parent = header
+        })
+
+        -- Container for features
         local container = library:create("Frame", {
-            Size = UDim2.new(1, -8, 1, -24),
-            Position = UDim2.new(0, 4, 0, 22),
+            Name = "Container",
+            Size = UDim2.new(1, 0, 0, 0),
+            Position = UDim2.new(0, 0, 0, 26),
             BackgroundTransparency = 1,
+            AutomaticSize = Enum.AutomaticSize.Y,
+            ZIndex = 21,
             Parent = fw
         })
+
+        library:create("UIPadding", {
+            PaddingLeft = UDim.new(0, 6),
+            PaddingRight = UDim.new(0, 6),
+            PaddingTop = UDim.new(0, 6),
+            PaddingBottom = UDim.new(0, 6),
+            Parent = container
+        })
+
         library:create("UIListLayout", {
             SortOrder = Enum.SortOrder.LayoutOrder,
             Padding = UDim.new(0, 4),
             Parent = container
         })
 
-        local float_obj = { frame = fw, container = container }
+        local float_obj = { frame = fw, container = container, header = header }
 
         function float_obj:add(text)
-            local row = library:create("TextLabel", {
-                Size = UDim2.new(1, 0, 0, 14),
-                BackgroundTransparency = 1,
-                Font = Enum.Font.SourceSansBold,
-                Text = "• " .. tostring(text),
-                TextColor3 = Color3.fromRGB(90, 220, 120),
-                TextSize = 11,
-                TextXAlignment = Enum.TextXAlignment.Left,
+            local item = library:create("Frame", {
+                Name = "FeatureItem_" .. tostring(text),
+                Size = UDim2.new(1, 0, 0, 20),
+                BackgroundColor3 = Color3.fromRGB(22, 19, 32),
+                BackgroundTransparency = 0.4,
+                BorderSizePixel = 0,
+                ZIndex = 22,
                 Parent = container
             })
-            return row
+            make_corner(item, 4)
+            make_stroke(item, Color3.fromRGB(38, 33, 54), 1)
+
+            -- Glowing mini dot
+            local dot = library:create("Frame", {
+                Size = UDim2.new(0, 4, 0, 4),
+                Position = UDim2.new(0, 7, 0.5, -2),
+                BackgroundColor3 = Color3.fromRGB(0, 255, 159),
+                BorderSizePixel = 0,
+                ZIndex = 23,
+                Parent = item
+            })
+            make_corner(dot, 2)
+
+            -- Feature Name Text
+            local lbl = library:create("TextLabel", {
+                Size = UDim2.new(1, -44, 1, 0),
+                Position = UDim2.new(0, 16, 0, 0),
+                BackgroundTransparency = 1,
+                FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.SemiBold, Enum.FontStyle.Normal),
+                Text = tostring(text),
+                TextColor3 = Color3.fromRGB(235, 235, 245),
+                TextSize = 11,
+                TextXAlignment = Enum.TextXAlignment.Left,
+                ZIndex = 23,
+                Parent = item
+            })
+
+            -- Status badge "ON"
+            local badge = library:create("Frame", {
+                Size = UDim2.new(0, 24, 0, 14),
+                Position = UDim2.new(1, -28, 0.5, -7),
+                BackgroundColor3 = Color3.fromRGB(15, 35, 25),
+                BorderSizePixel = 0,
+                ZIndex = 23,
+                Parent = item
+            })
+            make_corner(badge, 3)
+            make_stroke(badge, Color3.fromRGB(25, 60, 40), 1)
+
+            local badge_lbl = library:create("TextLabel", {
+                Size = UDim2.new(1, 0, 1, 0),
+                BackgroundTransparency = 1,
+                FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.Bold, Enum.FontStyle.Normal),
+                Text = "ON",
+                TextColor3 = Color3.fromRGB(0, 255, 159),
+                TextSize = 9,
+                ZIndex = 24,
+                Parent = badge
+            })
+
+            return {
+                frame = item,
+                set = function(new_text) lbl.Text = tostring(new_text) end,
+                destroy = function() item:Destroy() end
+            }
         end
 
         function float_obj:remove(text)
             for _, v in ipairs(container:GetChildren()) do
-                if v:IsA("TextLabel") and v.Text:match(tostring(text)) then
+                if v:IsA("Frame") and (v.Name == "FeatureItem_" .. tostring(text) or (v:FindFirstChildOfClass("TextLabel") and v:FindFirstChildOfClass("TextLabel").Text:match(tostring(text)))) then
+                    v:Destroy()
+                elseif v:IsA("TextLabel") and v.Text:match(tostring(text)) then
                     v:Destroy()
                 end
             end
@@ -2180,37 +2347,59 @@ function library:window(cfg)
 
         function float_obj:row(lbl_text, val_text, val_col)
             local row = library:create("Frame", {
-                Size = UDim2.new(1, 0, 0, 14),
-                BackgroundTransparency = 1,
+                Name = "FeatureRow_" .. tostring(lbl_text),
+                Size = UDim2.new(1, 0, 0, 20),
+                BackgroundColor3 = Color3.fromRGB(20, 18, 30),
+                BackgroundTransparency = 0.5,
+                BorderSizePixel = 0,
+                ZIndex = 22,
                 Parent = container
             })
-            library:create("TextLabel", {
-                Size = UDim2.new(0.55, 0, 1, 0),
+            make_corner(row, 4)
+            make_stroke(row, Color3.fromRGB(35, 30, 50), 1)
+
+            local l = library:create("TextLabel", {
+                Size = UDim2.new(0.6, -8, 1, 0),
+                Position = UDim2.new(0, 8, 0, 0),
                 BackgroundTransparency = 1,
-                Font = Enum.Font.SourceSansBold,
+                FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.Medium, Enum.FontStyle.Normal),
                 Text = tostring(lbl_text),
-                TextColor3 = library.theme.text_dim,
+                TextColor3 = Color3.fromRGB(175, 170, 195),
                 TextSize = 11,
                 TextXAlignment = Enum.TextXAlignment.Left,
+                ZIndex = 23,
                 Parent = row
             })
+
+            local val_pill = library:create("Frame", {
+                Size = UDim2.new(0.4, 0, 0, 14),
+                Position = UDim2.new(0.6, -6, 0.5, -7),
+                BackgroundColor3 = Color3.fromRGB(15, 13, 24),
+                BorderSizePixel = 0,
+                ZIndex = 23,
+                Parent = row
+            })
+            make_corner(val_pill, 3)
+
             local v = library:create("TextLabel", {
-                Size = UDim2.new(0.45, 0, 1, 0),
-                Position = UDim2.new(0.55, 0, 0, 0),
+                Size = UDim2.new(1, 0, 1, 0),
                 BackgroundTransparency = 1,
-                Font = Enum.Font.SourceSansBold,
+                FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.Bold, Enum.FontStyle.Normal),
                 Text = tostring(val_text),
-                TextColor3 = val_col or library.theme.text,
-                TextSize = 11,
-                TextXAlignment = Enum.TextXAlignment.Right,
-                Parent = row
+                TextColor3 = val_col or library.theme.accent,
+                TextSize = 10,
+                TextXAlignment = Enum.TextXAlignment.Center,
+                ZIndex = 24,
+                Parent = val_pill
             })
+
             return {
                 set = function(t, c)
                     v.Text = tostring(t)
                     if c then v.TextColor3 = c end
                 end,
-                frame = row
+                frame = row,
+                destroy = function() row:Destroy() end
             }
         end
 
