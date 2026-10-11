@@ -19,6 +19,7 @@ local RunService: RunService             = cloneref(game:GetService("RunService"
 local GuiService: GuiService             = cloneref(game:GetService("GuiService"))
 local HttpService: HttpService           = cloneref(game:GetService("HttpService"))
 local MarketplaceService: MarketplaceService = cloneref(game:GetService("MarketplaceService"))
+local TextService: TextService               = cloneref(game:GetService("TextService"))
 
 local isfolder   = isfolder or function(_) return false end
 local isfile     = isfile or function(_) return false end
@@ -235,6 +236,11 @@ local function make_draggable(frame)
                 local delta = input.Position - dragStart
                 frame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
             end
+        end
+    end)
+    UserInputService.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = false
         end
     end)
 end
@@ -1610,7 +1616,44 @@ function library:window(cfg)
     if window_name == "gamesense" or window_name == "" then
         window_name = "ezwin.cc"
     end
-    local window_size = cfg.size or cfg.Size or UDim2.new(0, 520, 0, 380)
+    local base_size = cfg.size or cfg.Size or UDim2.new(0, 520, 0, 380)
+    local base_w = (base_size.X.Scale > 0 and base_size.X.Scale * 1000) or base_size.X.Offset
+    local base_h = (base_size.Y.Scale > 0 and base_size.Y.Scale * 800) or base_size.Y.Offset
+    if base_w <= 0 then base_w = 520 end
+    if base_h <= 0 then base_h = 380 end
+
+    local cam = workspace.CurrentCamera
+    local function get_viewport()
+        if cam and cam.ViewportSize.X > 0 and cam.ViewportSize.Y > 0 then
+            return cam.ViewportSize
+        end
+        return Vector2.new(1920, 1080)
+    end
+
+    local function compute_responsive_menu_size()
+        local vp = get_viewport()
+        local is_touch = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
+        local top_inset = GuiInset > 0 and GuiInset or 20
+        local max_w = math.max(280, vp.X - 16)
+        local max_h = math.max(240, vp.Y - (top_inset + 16))
+
+        if is_touch or vp.X < (base_w + 24) or vp.Y < (base_h + 30) then
+            local final_w = math.min(base_w, max_w)
+            local final_h = math.min(base_h, max_h)
+
+            if vp.X < 520 then
+                final_w = math.clamp(vp.X - 16, 280, 480)
+                final_h = math.clamp(vp.Y - (top_inset + 20), 240, 500)
+            elseif vp.Y < 440 then
+                final_h = math.clamp(vp.Y - (top_inset + 16), 240, 380)
+                final_w = math.clamp(vp.X - 24, 300, base_w)
+            end
+
+            return UDim2.new(0, math.floor(final_w), 0, math.floor(final_h)), true
+        end
+
+        return UDim2.new(0, math.floor(base_w), 0, math.floor(base_h)), false
+    end
 
     pcall(function()
         for _, g in ipairs(TargetGui:GetChildren()) do
@@ -1633,10 +1676,11 @@ function library:window(cfg)
     self.screen = screen
     self.ScreenGui = screen
 
+    local initial_menu_size, is_mobile_mode = compute_responsive_menu_size()
     local main = library:create("Frame", {
         Name = "MainFrame",
-        Size = window_size,
-        Position = UDim2.new(0.5, -window_size.X.Offset / 2, 0.5, -window_size.Y.Offset / 2),
+        Size = initial_menu_size,
+        Position = UDim2.new(0.5, -initial_menu_size.X.Offset / 2, 0.5, -initial_menu_size.Y.Offset / 2),
         BackgroundColor3 = self.theme.main_bg,
         BackgroundTransparency = 1,
         BorderSizePixel = 0,
@@ -1645,6 +1689,26 @@ function library:window(cfg)
     make_corner(main, 4)
     make_stroke(main, self.theme.border, 1)
     make_draggable(main)
+
+    local function update_menu_responsive_bounds()
+        local new_sz = compute_responsive_menu_size()
+        main.Size = new_sz
+        local vp = get_viewport()
+        local cur_x = main.Position.X.Scale * vp.X + main.Position.X.Offset
+        local cur_y = main.Position.Y.Scale * vp.Y + main.Position.Y.Offset
+        local w = new_sz.X.Offset
+        local h = new_sz.Y.Offset
+
+        if cur_x < 0 or (cur_x + w) > vp.X or cur_y < 0 or (cur_y + h) > vp.Y then
+            main.Position = UDim2.new(0.5, -w / 2, 0.5, -h / 2)
+        end
+    end
+
+    if cam then
+        library:connection(cam:GetPropertyChangedSignal("ViewportSize"), function()
+            update_menu_responsive_bounds()
+        end)
+    end
 
     -- Background frame avec gradient dédié (totalement isolé pour ne toucher AUCUNE écriture)
     local menu_bg = library:create("Frame", {
@@ -2106,7 +2170,7 @@ function library:window(cfg)
         return dialog_obj
     end
 
-    -- Watermark (gamesense style)
+    -- Watermark (gamesense style avec auto-resize et show/hide)
     function window_obj:watermark(wcfg)
         wcfg = wcfg or {}
         local tag_name = wcfg.name or wcfg.text or "ezwin.cc"
@@ -2114,13 +2178,17 @@ function library:window(cfg)
             tag_name = tag_name:gsub("^gamesense", "ezwin.cc"):gsub("^GameSense", "ezwin.cc")
         end
 
+        local is_touch = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
+        local wm_pos = wcfg.position or (is_touch and UDim2.new(0, 10, 0, math.max(10, GuiInset + 4)) or UDim2.new(0, 20, 0, 20))
+
         local wm = library:create("Frame", {
             Name = "Watermark",
             AutomaticSize = Enum.AutomaticSize.X,
             Size = UDim2.new(0, 0, 0, 20),
-            Position = UDim2.new(0, 20, 0, 20),
+            Position = wm_pos,
             BackgroundColor3 = Color3.fromRGB(15, 13, 22),
             BorderSizePixel = 0,
+            Visible = (wcfg.visible ~= false),
             Parent = screen
         })
         make_corner(wm, 4)
@@ -2143,7 +2211,8 @@ function library:window(cfg)
         })
 
         local lbl = library:create("TextLabel", {
-            Size = UDim2.new(1, 0, 1, 0),
+            Size = UDim2.new(0, 0, 1, 0),
+            AutomaticSize = Enum.AutomaticSize.X,
             BackgroundTransparency = 1,
             FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.Bold, Enum.FontStyle.Normal),
             Text = tag_name .. " | " .. (LocalPlayer.DisplayName or LocalPlayer.Name) .. " | 00:00 | 60 fps",
@@ -2166,26 +2235,85 @@ function library:window(cfg)
             end
         end)
 
-        return {
-            set = function(new_text) lbl.Text = new_text end,
-            frame = wm
+        local wm_obj = {
+            frame = wm,
+            label = lbl,
+            set = function(new_text) lbl.Text = tostring(new_text) end,
+            SetText = function(self_wm, new_text) lbl.Text = tostring(new_text) end,
+            SetVisible = function(self_wm, visible)
+                if type(self_wm) == "boolean" then visible = self_wm end
+                wm.Visible = (visible == true)
+            end,
+            Toggle = function(self_wm)
+                wm.Visible = not wm.Visible
+                return wm.Visible
+            end,
+            Show = function(self_wm)
+                wm.Visible = true
+            end,
+            Hide = function(self_wm)
+                wm.Visible = false
+            end,
+            IsVisible = function(self_wm)
+                return wm.Visible
+            end,
+            destroy = function(self_wm)
+                wm:Destroy()
+            end
         }
+
+        window_obj.Watermark = wm_obj
+        library.Watermark = wm_obj
+
+        if library.Toggles and library.Toggles.ShowWatermark then
+            wm.Visible = library.Toggles.ShowWatermark.Value
+        end
+
+        return wm_obj
     end
 
-    -- Floating window (Feature list / Keybinds widget sleek style)
+    -- Floating window (Feature list / Keybinds widget sleek style avec Auto-Resize)
     function window_obj:floating(fcfg)
         fcfg = fcfg or {}
         local title = fcfg.title or "Active Features"
         local initial_width = (fcfg.size and fcfg.size.X.Offset > 0 and fcfg.size.X.Offset) or 165
-        local initial_pos = fcfg.position or UDim2.new(0.5, -345, 0.5, 40)
+
+        local cam = workspace.CurrentCamera
+        local function get_viewport_size()
+            if cam and cam.ViewportSize.X > 0 and cam.ViewportSize.Y > 0 then
+                return cam.ViewportSize
+            end
+            return Vector2.new(1920, 1080)
+        end
+
+        local vp = get_viewport_size()
+        local is_touch = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
+
+        local initial_pos = fcfg.position
+        if not initial_pos then
+            if is_touch or vp.X < 800 then
+                initial_pos = UDim2.new(0, 12, 0, math.max(46, GuiInset + 34))
+            else
+                initial_pos = UDim2.new(0.5, -345, 0.5, 40)
+            end
+        else
+            local abs_x = initial_pos.X.Scale * vp.X + initial_pos.X.Offset
+            local abs_y = initial_pos.Y.Scale * vp.Y + initial_pos.Y.Offset
+            if abs_x < 0 or abs_x > vp.X - 50 or abs_y < 0 or abs_y > vp.Y - 50 then
+                initial_pos = UDim2.new(0, 12, 0, math.max(46, GuiInset + 34))
+            end
+        end
+
+        local min_width = math.max(140, initial_width)
 
         local fw = library:create("Frame", {
             Name = "FloatingFeatures",
-            Size = UDim2.new(0, initial_width, 0, 0),
+            Size = UDim2.new(0, min_width, 0, 0),
             Position = initial_pos,
             BackgroundColor3 = Color3.fromRGB(15, 13, 22),
             BorderSizePixel = 0,
             AutomaticSize = Enum.AutomaticSize.Y,
+            Visible = (fcfg.visible ~= false),
             ZIndex = 20,
             Parent = screen
         })
@@ -2280,7 +2408,88 @@ function library:window(cfg)
             Parent = container
         })
 
-        local float_obj = { frame = fw, container = container, header = header }
+        local function measure_str(txt, font_weight, txt_sz)
+            local ok, s = pcall(function()
+                return TextService:GetTextSize(tostring(txt), txt_sz or 11, font_weight or Enum.Font.SourceSansBold, Vector2.new(2000, 100))
+            end)
+            if ok and s then return s.X end
+            return #tostring(txt) * 7.5
+        end
+
+        local tracked_items = {}
+
+        local function auto_resize_floating()
+            local cur_vp = get_viewport_size()
+            local needed = min_width
+
+            local tw = measure_str(title, Enum.Font.SourceSansBold, 11) + 48
+            if tw > needed then needed = tw end
+
+            for _, it in ipairs(tracked_items) do
+                if it.get_width then
+                    local w = it.get_width()
+                    if w > needed then needed = w end
+                end
+            end
+
+            local max_safe = math.max(150, cur_vp.X - 24)
+            local final_w = math.clamp(math.ceil(needed), min_width, max_safe)
+
+            if math.abs(fw.Size.X.Offset - final_w) > 1 then
+                library:tween(fw, { Size = UDim2.new(0, final_w, 0, 0) }, nil, 0.15)
+            end
+        end
+
+        if cam then
+            library:connection(cam:GetPropertyChangedSignal("ViewportSize"), function()
+                auto_resize_floating()
+                local cur_vp = get_viewport_size()
+                local cur_x = fw.Position.X.Scale * cur_vp.X + fw.Position.X.Offset
+                local cur_y = fw.Position.Y.Scale * cur_vp.Y + fw.Position.Y.Offset
+                local cur_w = fw.Size.X.Offset
+                local cur_h = fw.AbsoluteSize.Y
+                if cur_x < 4 or (cur_x + cur_w) > cur_vp.X - 4 or cur_y < 4 or (cur_y + cur_h) > cur_vp.Y - 4 then
+                    local safe_x = math.clamp(cur_x, 8, math.max(8, cur_vp.X - cur_w - 8))
+                    local safe_y = math.clamp(cur_y, 8, math.max(8, cur_vp.Y - math.max(30, cur_h) - 8))
+                    fw.Position = UDim2.new(0, safe_x, 0, safe_y)
+                end
+            end)
+        end
+
+        local float_obj = {
+            frame = fw,
+            container = container,
+            header = header,
+            title = title_lbl,
+            AutoSize = auto_resize_floating,
+            SetVisible = function(self_f, visible)
+                if type(self_f) == "boolean" then visible = self_f end
+                fw.Visible = (visible == true)
+            end,
+            Toggle = function(self_f)
+                fw.Visible = not fw.Visible
+                return fw.Visible
+            end,
+            Show = function(self_f)
+                fw.Visible = true
+            end,
+            Hide = function(self_f)
+                fw.Visible = false
+            end,
+            IsVisible = function(self_f)
+                return fw.Visible
+            end,
+            destroy = function(self_f)
+                fw:Destroy()
+            end
+        }
+
+        window_obj.FloatingFeatures = float_obj
+        library.FloatingFeatures = float_obj
+
+        if library.Toggles and library.Toggles.ShowFeatures then
+            fw.Visible = library.Toggles.ShowFeatures.Value
+        end
 
         function float_obj:add(text)
             local item = library:create("Frame", {
@@ -2343,14 +2552,42 @@ function library:window(cfg)
                 Parent = badge
             })
 
+            local item_entry = {
+                id = item,
+                get_width = function()
+                    return measure_str(lbl.Text, Enum.Font.SourceSansSemibold, 11) + 64
+                end
+            }
+            table.insert(tracked_items, item_entry)
+            auto_resize_floating()
+
             return {
                 frame = item,
-                set = function(new_text) lbl.Text = tostring(new_text) end,
-                destroy = function() item:Destroy() end
+                set = function(new_text)
+                    lbl.Text = tostring(new_text)
+                    auto_resize_floating()
+                end,
+                destroy = function()
+                    for idx, e in ipairs(tracked_items) do
+                        if e.id == item then
+                            table.remove(tracked_items, idx)
+                            break
+                        end
+                    end
+                    item:Destroy()
+                    auto_resize_floating()
+                end
             }
         end
 
         function float_obj:remove(text)
+            for i = #tracked_items, 1, -1 do
+                local it = tracked_items[i].id
+                if it and it.Parent and (it.Name == "FeatureItem_" .. tostring(text) or (it:FindFirstChildOfClass("TextLabel") and it:FindFirstChildOfClass("TextLabel").Text:match(tostring(text)))) then
+                    table.remove(tracked_items, i)
+                    it:Destroy()
+                end
+            end
             for _, v in ipairs(container:GetChildren()) do
                 if v:IsA("Frame") and (v.Name == "FeatureItem_" .. tostring(text) or (v:FindFirstChildOfClass("TextLabel") and v:FindFirstChildOfClass("TextLabel").Text:match(tostring(text)))) then
                     v:Destroy()
@@ -2358,6 +2595,7 @@ function library:window(cfg)
                     v:Destroy()
                 end
             end
+            auto_resize_floating()
         end
 
         function float_obj:row(lbl_text, val_text, val_col)
@@ -2408,13 +2646,34 @@ function library:window(cfg)
                 Parent = val_pill
             })
 
+            local row_entry = {
+                id = row,
+                get_width = function()
+                    local lw = measure_str(l.Text, Enum.Font.SourceSansMedium, 11)
+                    local vw = measure_str(v.Text, Enum.Font.SourceSansBold, 10)
+                    return lw + vw + 48
+                end
+            }
+            table.insert(tracked_items, row_entry)
+            auto_resize_floating()
+
             return {
                 set = function(t, c)
                     v.Text = tostring(t)
                     if c then v.TextColor3 = c end
+                    auto_resize_floating()
                 end,
                 frame = row,
-                destroy = function() row:Destroy() end
+                destroy = function()
+                    for idx, e in ipairs(tracked_items) do
+                        if e.id == row then
+                            table.remove(tracked_items, idx)
+                            break
+                        end
+                    end
+                    row:Destroy()
+                    auto_resize_floating()
+                end
             }
         end
 
@@ -4969,6 +5228,22 @@ function library:window(cfg)
             Mode = "Toggle",
             Text = "Menu Keybind",
         })
+        menu_box:AddToggle("ShowWatermark", {
+            Text = "Show Watermark",
+            Default = true,
+            Tooltip = "Afficher / masquer le watermark en haut de l'écran",
+            Callback = function(v)
+                library:SetWatermarkVisibility(v)
+            end
+        })
+        menu_box:AddToggle("ShowFeatures", {
+            Text = "Show Features List",
+            Default = true,
+            Tooltip = "Afficher / masquer la boîte flottante des features",
+            Callback = function(v)
+                library:SetFeaturesVisibility(v)
+            end
+        })
         menu_box:AddButton("Unload Script", function()
             library:Unload()
         end)
@@ -5007,6 +5282,42 @@ function library:Toggle(state)
         self.screen.Enabled = state
     end
     self.Toggled = state
+end
+
+function library:SetWatermarkVisibility(visible)
+    if self.Watermark then
+        self.Watermark:SetVisible(visible)
+    end
+    if self.Toggles and self.Toggles.ShowWatermark and self.Toggles.ShowWatermark.Value ~= visible then
+        self.Toggles.ShowWatermark:SetValue(visible)
+    end
+end
+
+function library:ToggleWatermark()
+    if self.Watermark then
+        return self.Watermark:Toggle()
+    end
+end
+
+function library:SetWatermark(text)
+    if self.Watermark then
+        self.Watermark:SetText(text)
+    end
+end
+
+function library:SetFeaturesVisibility(visible)
+    if self.FloatingFeatures then
+        self.FloatingFeatures:SetVisible(visible)
+    end
+    if self.Toggles and self.Toggles.ShowFeatures and self.Toggles.ShowFeatures.Value ~= visible then
+        self.Toggles.ShowFeatures:SetValue(visible)
+    end
+end
+
+function library:ToggleFeatures()
+    if self.FloatingFeatures then
+        return self.FloatingFeatures:Toggle()
+    end
 end
 
 function library:Unload()
