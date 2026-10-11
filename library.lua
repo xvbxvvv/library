@@ -4,22 +4,22 @@
 -- Reusable Luau Library for Roblox
 -- ==============================================================================
 
-local cloneref = (cloneref or clonereference or function(instance: any)
+local cloneref = (cloneref or clonereference or function(instance)
     return instance
 end)
 local clonefunction = (clonefunction or copyfunction or function(func)
     return func
 end)
 
-local UserInputService: UserInputService = cloneref(game:GetService("UserInputService"))
-local Players: Players                   = cloneref(game:GetService("Players"))
-local TweenService: TweenService         = cloneref(game:GetService("TweenService"))
-local CoreGui: CoreGui                   = cloneref(game:GetService("CoreGui"))
-local RunService: RunService             = cloneref(game:GetService("RunService"))
-local GuiService: GuiService             = cloneref(game:GetService("GuiService"))
-local HttpService: HttpService           = cloneref(game:GetService("HttpService"))
-local MarketplaceService: MarketplaceService = cloneref(game:GetService("MarketplaceService"))
-local TextService: TextService               = cloneref(game:GetService("TextService"))
+local UserInputService = cloneref(game:GetService("UserInputService"))
+local Players          = cloneref(game:GetService("Players"))
+local TweenService     = cloneref(game:GetService("TweenService"))
+local CoreGui          = cloneref(game:GetService("CoreGui"))
+local RunService       = cloneref(game:GetService("RunService"))
+local GuiService       = cloneref(game:GetService("GuiService"))
+local HttpService      = cloneref(game:GetService("HttpService"))
+local MarketplaceService = cloneref(game:GetService("MarketplaceService"))
+local TextService      = cloneref(game:GetService("TextService"))
 
 local isfolder   = isfolder or function(_) return false end
 local isfile     = isfile or function(_) return false end
@@ -29,20 +29,21 @@ local readfile   = readfile or function(_) return "" end
 local delfile    = delfile or function(_) end
 local listfiles  = listfiles or function(_) return {} end
 
-local LocalPlayer = Players.LocalPlayer or Players.PlayerAdded:Wait()
-local Mouse = LocalPlayer:GetMouse()
-local GuiInset = GuiService:GetGuiInset().Y
+local LocalPlayer = Players.LocalPlayer
+if not LocalPlayer then
+    pcall(function()
+        LocalPlayer = Players.PlayerAdded:Wait()
+    end)
+    LocalPlayer = LocalPlayer or Players.LocalPlayer
+end
+local Mouse = LocalPlayer and LocalPlayer:GetMouse()
+local ok_inset, inset_v = pcall(function() return GuiService:GetGuiInset() end)
+local GuiInset = (ok_inset and inset_v and inset_v.Y) or 36
 
 local function resolve_gui_parent()
     if gethui then
         local ok, hui = pcall(gethui)
         if ok and hui then return hui end
-    end
-    if syn and syn.protect_gui then
-        local folder = Instance.new("Folder")
-        pcall(syn.protect_gui, folder)
-        folder.Parent = CoreGui
-        return folder
     end
     local ok, res = pcall(function()
         local test = Instance.new("Folder")
@@ -52,7 +53,7 @@ local function resolve_gui_parent()
         return CoreGui
     end)
     if ok and res then return res end
-    return LocalPlayer:WaitForChild("PlayerGui", 5) or LocalPlayer:FindFirstChildOfClass("PlayerGui")
+    return (LocalPlayer and LocalPlayer:WaitForChild("PlayerGui", 5)) or (LocalPlayer and LocalPlayer:FindFirstChildOfClass("PlayerGui"))
 end
 local TargetGui = resolve_gui_parent()
 
@@ -982,6 +983,7 @@ function library:BuildESPPreview(parent, options)
         set_color = function(c) esp_color = c; box_stroke.Color = c; render() end,
         set_health_percent = function(p)
             health_fill.Size = UDim2.new(math.clamp(p, 0, 1), 0, 1, 0)
+        end,
         refresh = render,
         reset_rotation = function()
             current_yaw = 0
@@ -1747,7 +1749,7 @@ function library:window(cfg)
         Size = initial_menu_size,
         Position = UDim2.new(0.5, -initial_menu_size.X.Offset / 2, 0.5, -initial_menu_size.Y.Offset / 2),
         BackgroundColor3 = self.theme.main_bg,
-        BackgroundTransparency = 1,
+        BackgroundTransparency = 0,
         BorderSizePixel = 0,
         Parent = screen
     })
@@ -1782,7 +1784,7 @@ function library:window(cfg)
         Position = UDim2.new(0, 0, 0, 0),
         BackgroundColor3 = Color3.fromRGB(255, 255, 255),
         BorderSizePixel = 0,
-        ZIndex = 0,
+        ZIndex = 1,
         Parent = main
     })
     make_corner(menu_bg, 4)
@@ -4673,6 +4675,9 @@ function library:window(cfg)
             end
 
             table.insert(tab_obj.subtabs, sub_obj)
+            if not tab_obj.current_sub and window_obj.current_tab == tab_obj then
+                sub_obj:select()
+            end
             return sub_obj
         end
 
@@ -5341,10 +5346,19 @@ end
 
 function library:Toggle(state)
     if state == nil then
-        state = not (self.screen and self.screen.Enabled)
+        if self.Window and self.Window.main then
+            state = not self.Window.main.Visible
+        elseif self.screen then
+            state = not self.screen.Enabled
+        else
+            state = not self.Toggled
+        end
+    end
+    if self.Window and self.Window.main then
+        self.Window.main.Visible = state
     end
     if self.screen then
-        self.screen.Enabled = state
+        self.screen.Enabled = true
     end
     self.Toggled = state
 end
