@@ -2301,31 +2301,53 @@ function library:window(cfg)
         return dialog_obj
     end
 
-    -- Watermark ultra class et moderne (gamesense / skeet.cc style avec logo officiel)
+    -- Watermark PREMIUM — glassmorphisme, logo pulsant, chips stylisées (ezwin.cc)
     function window_obj:watermark(wcfg)
         wcfg = wcfg or {}
         local raw_name = wcfg.name or wcfg.text or "ezwin.cc"
 
         local is_touch = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
-        local wm_pos = wcfg.position or (is_touch and UDim2.new(0, 10, 0, math.max(10, GuiInset + 4)) or UDim2.new(0, 20, 0, 20))
+        local wm_pos = wcfg.position or (is_touch and UDim2.new(0, 10, 0, math.max(10, GuiInset + 4)) or UDim2.new(0.5, -200, 0, 12))
 
-        -- Conteneur Principal Watermark Capsule
+        local accent = library.theme.accent
+        local accent_hex = accent:ToHex()
+
+        -- ── Fond glassmorphisme (capsule principale, hauteur 32px)
         local wm = library:create("Frame", {
             Name = "Watermark",
-            AutomaticSize = Enum.AutomaticSize.XY,
-            Size = UDim2.new(0, 0, 0, 24),
+            AutomaticSize = Enum.AutomaticSize.X,
+            Size = UDim2.new(0, 0, 0, 32),
             Position = wm_pos,
-            BackgroundColor3 = Color3.fromRGB(14, 12, 22),
+            BackgroundColor3 = Color3.fromRGB(11, 9, 18),
             BorderSizePixel = 0,
             Visible = (wcfg.visible ~= false),
             ZIndex = 50,
             Parent = screen
         })
-        make_corner(wm, 5)
-        local wm_stroke = make_stroke(wm, library.theme.border, 1)
+        make_corner(wm, 8)
+
+        -- Gradient de fond subtil (glassmorphisme)
+        local bg_gradient = library:create("UIGradient", {
+            Name = "BgGradient",
+            Rotation = 110,
+            Color = ColorSequence.new({
+                ColorSequenceKeypoint.new(0, Color3.fromRGB(18, 14, 30)),
+                ColorSequenceKeypoint.new(0.5, Color3.fromRGB(13, 10, 22)),
+                ColorSequenceKeypoint.new(1, Color3.fromRGB(10, 8, 18)),
+            }),
+            Parent = wm
+        })
+
+        -- Bordure accent animée
+        local wm_stroke = Instance.new("UIStroke")
+        wm_stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+        wm_stroke.Color = Color3.fromRGB(50, 42, 75)
+        wm_stroke.Thickness = 1
+        wm_stroke.Parent = wm
+
         make_draggable(wm)
 
-        -- Barre supérieure d'accentuation avec dégradé subtil
+        -- ── Stripe supérieure accent avec dégradé lumineux
         local top_stripe = library:create("Frame", {
             Name = "TopStripe",
             Size = UDim2.new(1, 0, 0, 2),
@@ -2336,90 +2358,124 @@ function library:window(cfg)
             Parent = wm
         })
         make_corner(top_stripe, 2)
-
         local top_gradient = library:create("UIGradient", {
             Name = "StripeGradient",
             Rotation = 0,
             Color = ColorSequence.new({
-                ColorSequenceKeypoint.new(0, library.theme.accent),
-                ColorSequenceKeypoint.new(0.65, library.theme.accent),
-                ColorSequenceKeypoint.new(1, Color3.fromRGB(math.clamp(math.floor(library.theme.accent.R * 255 + 50), 0, 255), math.clamp(math.floor(library.theme.accent.G * 255 + 40), 0, 255), math.clamp(math.floor(library.theme.accent.B * 255 + 40), 0, 255))),
+                ColorSequenceKeypoint.new(0,    Color3.fromRGB(
+                    math.clamp(math.floor(accent.R*255 - 20), 0, 255),
+                    math.clamp(math.floor(accent.G*255 - 30), 0, 255),
+                    math.clamp(math.floor(accent.B*255 + 10), 0, 255)
+                )),
+                ColorSequenceKeypoint.new(0.4,  accent),
+                ColorSequenceKeypoint.new(0.75, Color3.fromRGB(
+                    math.clamp(math.floor(accent.R*255 + 60), 0, 255),
+                    math.clamp(math.floor(accent.G*255 + 50), 0, 255),
+                    math.clamp(math.floor(accent.B*255 + 55), 0, 255)
+                )),
+                ColorSequenceKeypoint.new(1,    accent),
             }),
             Parent = top_stripe
         })
         library:AddToRegistry(top_stripe, { BackgroundColor = "AccentColor" })
 
-        -- Conteneur horizontal avec padding
+        -- ── Conteneur horizontal principal
         local content = library:create("Frame", {
             Name = "Content",
-            AutomaticSize = Enum.AutomaticSize.XY,
-            Size = UDim2.new(0, 0, 0, 24),
+            AutomaticSize = Enum.AutomaticSize.X,
+            Size = UDim2.new(0, 0, 1, 0),
             BackgroundTransparency = 1,
             ZIndex = 51,
             Parent = wm
         })
-
         library:create("UIPadding", {
-            PaddingLeft = UDim.new(0, 6),
-            PaddingRight = UDim.new(0, 9),
-            PaddingTop = UDim.new(0, 2),
+            PaddingLeft  = UDim.new(0, 10),
+            PaddingRight = UDim.new(0, 12),
+            PaddingTop   = UDim.new(0, 4),
             PaddingBottom = UDim.new(0, 2),
             Parent = content
         })
-
         library:create("UIListLayout", {
-            FillDirection = Enum.FillDirection.Horizontal,
-            VerticalAlignment = Enum.VerticalAlignment.Center,
+            FillDirection       = Enum.FillDirection.Horizontal,
+            VerticalAlignment   = Enum.VerticalAlignment.Center,
             HorizontalAlignment = Enum.HorizontalAlignment.Left,
-            Padding = UDim.new(0, 7),
-            SortOrder = Enum.SortOrder.LayoutOrder,
+            Padding             = UDim.new(0, 8),
+            SortOrder           = Enum.SortOrder.LayoutOrder,
             Parent = content
         })
 
-        -- 1. Mini Logo Box avec l'image du logo de l'utilisateur
+        -- ── 1. Logo avec anneau de lueur pulsant
         local logo_asset = resolve_logo(wcfg.logo or wcfg.Logo or (cfg and (cfg.Logo or cfg.logo)))
-        local logo_container = library:create("Frame", {
-            Name = "LogoContainer",
-            Size = UDim2.new(0, 16, 0, 16),
-            BackgroundColor3 = Color3.fromRGB(22, 19, 32),
+
+        -- Anneau extérieur "glow" pulsant
+        local glow_ring = library:create("Frame", {
+            Name          = "GlowRing",
+            Size          = UDim2.new(0, 26, 0, 26),
+            BackgroundColor3 = Color3.fromRGB(
+                math.clamp(math.floor(accent.R*255 * 0.6), 0, 255),
+                math.clamp(math.floor(accent.G*255 * 0.4), 0, 255),
+                math.clamp(math.floor(accent.B*255 * 0.9), 0, 255)
+            ),
+            BackgroundTransparency = 0.65,
             BorderSizePixel = 0,
             LayoutOrder = 1,
-            ZIndex = 52,
+            ZIndex = 51,
             Parent = content
         })
-        make_corner(logo_container, 3)
-        make_stroke(logo_container, Color3.fromRGB(48, 40, 72), 1)
+        make_corner(glow_ring, 13)
+
+        local logo_container = library:create("Frame", {
+            Name = "LogoContainer",
+            Size = UDim2.new(0, 22, 0, 22),
+            Position = UDim2.new(0, 2, 0, 2),
+            BackgroundColor3 = Color3.fromRGB(24, 20, 36),
+            BorderSizePixel = 0,
+            ZIndex = 52,
+            Parent = glow_ring
+        })
+        make_corner(logo_container, 11)
+
+        local logo_inner_stroke = Instance.new("UIStroke")
+        logo_inner_stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+        logo_inner_stroke.Color = accent
+        logo_inner_stroke.Thickness = 1
+        logo_inner_stroke.Transparency = 0.3
+        logo_inner_stroke.Parent = logo_container
 
         local logo_image = library:create("ImageLabel", {
             Name = "LogoImage",
-            Size = UDim2.new(1, -2, 1, -2),
-            Position = UDim2.new(0, 1, 0, 1),
+            Size = UDim2.new(1, -4, 1, -4),
+            Position = UDim2.new(0, 2, 0, 2),
             BackgroundTransparency = 1,
             Image = logo_asset,
             ScaleType = Enum.ScaleType.Fit,
             ZIndex = 53,
             Parent = logo_container
         })
-        make_corner(logo_image, 3)
+        make_corner(logo_image, 9)
 
-        -- Fonction pour formater le titre avec élégance (RichText)
+        -- Animation pulse du glow ring
+        local glow_up = true
+        local glow_tick = 0
+        local GLOW_PERIOD = 2.2
+
+        -- ── 2. Titre stylisé
         local function get_styled_title(name_str)
             name_str = tostring(name_str or "ezwin.cc")
             local hex = library.theme.accent:ToHex()
             if name_str:lower() == "gamesense" then
-                return '<font color="#FFFFFF">game</font><font color="#' .. hex .. '">sense</font>'
+                return '<font color="#FFFFFF"><b>game</b></font><font color="#' .. hex .. '"><b>sense</b></font>'
             elseif name_str:lower() == "ezwin.cc" or name_str:lower():match("^ezwin") then
-                return '<font color="#FFFFFF">ezwin</font><font color="#' .. hex .. '">.cc</font>'
+                return '<font color="#FFFFFF"><b>ezwin</b></font><font color="#' .. hex .. '"><b>.cc</b></font>'
             else
                 local p, s = name_str:match("^(.-)(%..+)$")
                 if p and s then
-                    return '<font color="#FFFFFF">' .. p .. '</font><font color="#' .. hex .. '">' .. s .. '</font>'
+                    return '<font color="#FFFFFF"><b>' .. p .. '</b></font><font color="#' .. hex .. '"><b>' .. s .. '</b></font>'
                 end
-                return '<font color="#FFFFFF">' .. name_str .. '</font>'
+                return '<font color="#FFFFFF"><b>' .. name_str .. '</b></font>'
             end
         end
 
-        -- 2. Label Nom du Cheat (Styled)
         local title_lbl = library:create("TextLabel", {
             Name = "TitleLabel",
             AutomaticSize = Enum.AutomaticSize.X,
@@ -2429,124 +2485,150 @@ function library:window(cfg)
             RichText = true,
             Text = get_styled_title(raw_name),
             TextColor3 = Color3.fromRGB(255, 255, 255),
-            TextSize = 11,
+            TextSize = 13,
             LayoutOrder = 2,
             ZIndex = 52,
             Parent = content
         })
 
+        -- ── Séparateur vertical élégant
         local function make_sep(order)
             local sep = library:create("Frame", {
                 Name = "Sep_" .. tostring(order),
-                Size = UDim2.new(0, 1, 0, 10),
-                BackgroundColor3 = Color3.fromRGB(50, 44, 72),
+                Size = UDim2.new(0, 1, 0, 14),
+                BackgroundColor3 = Color3.fromRGB(55, 46, 80),
                 BorderSizePixel = 0,
                 LayoutOrder = order,
                 ZIndex = 52,
                 Parent = content
             })
+            make_corner(sep, 1)
             return sep
         end
-
-        -- Séparateur 1
         make_sep(3)
 
-        -- 3. Label Pseudo Joueur
-        local user_lbl = library:create("TextLabel", {
-            Name = "UserLabel",
-            AutomaticSize = Enum.AutomaticSize.X,
-            Size = UDim2.new(0, 0, 1, 0),
-            BackgroundTransparency = 1,
-            FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.SemiBold, Enum.FontStyle.Normal),
-            Text = tostring(LocalPlayer and (LocalPlayer.DisplayName or LocalPlayer.Name) or "Player"),
-            TextColor3 = Color3.fromRGB(215, 215, 225),
-            TextSize = 11,
-            LayoutOrder = 4,
-            ZIndex = 52,
-            Parent = content
-        })
+        -- ── 3. Badge Pseudo (icon + texte)
+        local user_name = tostring(LocalPlayer and (LocalPlayer.DisplayName or LocalPlayer.Name) or "Player")
+        local function make_badge(order, icon_text, value_text, value_color)
+            local badge = library:create("Frame", {
+                Name = "Badge_" .. tostring(order),
+                AutomaticSize = Enum.AutomaticSize.X,
+                Size = UDim2.new(0, 0, 0, 22),
+                BackgroundColor3 = Color3.fromRGB(22, 18, 34),
+                BorderSizePixel = 0,
+                LayoutOrder = order,
+                ZIndex = 52,
+                Parent = content
+            })
+            make_corner(badge, 5)
+            library:create("UIPadding", {
+                PaddingLeft = UDim.new(0, 5), PaddingRight = UDim.new(0, 5),
+                PaddingTop = UDim.new(0, 0), PaddingBottom = UDim.new(0, 0),
+                Parent = badge
+            })
+            library:create("UIListLayout", {
+                FillDirection = Enum.FillDirection.Horizontal,
+                VerticalAlignment = Enum.VerticalAlignment.Center,
+                Padding = UDim.new(0, 3),
+                SortOrder = Enum.SortOrder.LayoutOrder,
+                Parent = badge
+            })
+            -- Icone texte (mini)
+            if icon_text and icon_text ~= "" then
+                library:create("TextLabel", {
+                    Name = "Icon",
+                    AutomaticSize = Enum.AutomaticSize.X,
+                    Size = UDim2.new(0, 0, 1, 0),
+                    BackgroundTransparency = 1,
+                    FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal),
+                    Text = icon_text,
+                    TextColor3 = Color3.fromRGB(100, 95, 130),
+                    TextSize = 10,
+                    LayoutOrder = 1,
+                    ZIndex = 53,
+                    Parent = badge
+                })
+            end
+            -- Valeur
+            local val_lbl = library:create("TextLabel", {
+                Name = "Value",
+                AutomaticSize = Enum.AutomaticSize.X,
+                Size = UDim2.new(0, 0, 1, 0),
+                BackgroundTransparency = 1,
+                FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.SemiBold, Enum.FontStyle.Normal),
+                RichText = true,
+                Text = value_text,
+                TextColor3 = value_color or Color3.fromRGB(220, 218, 235),
+                TextSize = 11,
+                LayoutOrder = 2,
+                ZIndex = 53,
+                Parent = badge
+            })
+            return badge, val_lbl
+        end
 
-        -- Séparateur 2
+        local _, user_val_lbl = make_badge(4, "◈", user_name, Color3.fromRGB(210, 208, 235))
         make_sep(5)
-
-        -- 4. Label Heure en direct
-        local time_lbl = library:create("TextLabel", {
-            Name = "TimeLabel",
-            AutomaticSize = Enum.AutomaticSize.X,
-            Size = UDim2.new(0, 0, 1, 0),
-            BackgroundTransparency = 1,
-            FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal),
-            Text = os.date("%H:%M:%S"),
-            TextColor3 = Color3.fromRGB(175, 170, 195),
-            TextSize = 11,
-            LayoutOrder = 6,
-            ZIndex = 52,
-            Parent = content
-        })
-
-        -- Séparateur 3
+        local _, time_val_lbl = make_badge(6, "◷", os.date("%H:%M:%S"), Color3.fromRGB(185, 180, 210))
         make_sep(7)
-
-        -- 5. Label Ping en direct
-        local ping_lbl = library:create("TextLabel", {
-            Name = "PingLabel",
-            AutomaticSize = Enum.AutomaticSize.X,
-            Size = UDim2.new(0, 0, 1, 0),
-            BackgroundTransparency = 1,
-            FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.SemiBold, Enum.FontStyle.Normal),
-            RichText = true,
-            Text = '<font color="#00FF9F">20</font><font color="#A5A0C0">ms</font>',
-            TextColor3 = Color3.fromRGB(255, 255, 255),
-            TextSize = 11,
-            LayoutOrder = 8,
-            ZIndex = 52,
-            Parent = content
-        })
-
-        -- Séparateur 4
+        local _, ping_val_lbl = make_badge(8, "⬡", '<font color="#00FF9F">20</font><font color="#7A7595">ms</font>', Color3.fromRGB(255,255,255))
         make_sep(9)
+        local _, fps_val_lbl = make_badge(10, "◈", '<font color="#' .. accent_hex .. '">60</font><font color="#7A7595">fps</font>', Color3.fromRGB(255,255,255))
 
-        -- 6. Label FPS en direct
-        local fps_lbl = library:create("TextLabel", {
-            Name = "FPSLabel",
-            AutomaticSize = Enum.AutomaticSize.X,
-            Size = UDim2.new(0, 0, 1, 0),
-            BackgroundTransparency = 1,
-            FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.Bold, Enum.FontStyle.Normal),
-            RichText = true,
-            Text = '<font color="#' .. library.theme.accent:ToHex() .. '">60</font> <font color="#A5A0C0">fps</font>',
-            TextColor3 = Color3.fromRGB(255, 255, 255),
-            TextSize = 11,
-            LayoutOrder = 10,
-            ZIndex = 52,
-            Parent = content
-        })
-
-        -- Hover effect subtil sur la capsule
+        -- ── Hover : bordure accent animée + léger fondu fond
         wm.MouseEnter:Connect(function()
-            wm_stroke.Color = library.theme.accent
+            TweenService:Create(wm_stroke, TweenInfo.new(0.18, Enum.EasingStyle.Quad), {
+                Color = library.theme.accent,
+                Thickness = 1.5
+            }):Play()
+            TweenService:Create(wm, TweenInfo.new(0.18, Enum.EasingStyle.Quad), {
+                BackgroundColor3 = Color3.fromRGB(17, 14, 26)
+            }):Play()
         end)
         wm.MouseLeave:Connect(function()
-            wm_stroke.Color = library.theme.border
+            TweenService:Create(wm_stroke, TweenInfo.new(0.25, Enum.EasingStyle.Quad), {
+                Color = Color3.fromRGB(50, 42, 75),
+                Thickness = 1
+            }):Play()
+            TweenService:Create(wm, TweenInfo.new(0.25, Enum.EasingStyle.Quad), {
+                BackgroundColor3 = Color3.fromRGB(11, 9, 18)
+            }):Play()
         end)
 
-        -- Calcul et mise à jour temps réel des FPS, Ping et Heure
+        -- ── Entrée animée (slide depuis le haut)
+        wm.Position = UDim2.new(wm_pos.X.Scale, wm_pos.X.Offset, wm_pos.Y.Scale, wm_pos.Y.Offset - 14)
+        wm.BackgroundTransparency = 1
+        TweenService:Create(wm, TweenInfo.new(0.35, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+            Position = wm_pos,
+            BackgroundTransparency = 0
+        }):Play()
+
+        -- ── Boucle temps réel : FPS + Ping + Heure + Pulse logo
         local last_tick = tick()
         local frame_count = 0
-        library:connection(RunService.RenderStepped, function()
+        library:connection(RunService.RenderStepped, function(dt)
             frame_count = frame_count + 1
             local now = tick()
+
+            -- Pulse glow ring
+            glow_tick = glow_tick + dt
+            local t = (glow_tick % GLOW_PERIOD) / GLOW_PERIOD
+            local alpha = math.abs(math.sin(t * math.pi))
+            local tr = 0.45 + (1 - alpha) * 0.45  -- entre 0.45 et 0.90
+            pcall(function() glow_ring.BackgroundTransparency = tr end)
+
             if now - last_tick >= 1 then
                 local current_fps = math.floor(frame_count / (now - last_tick))
                 frame_count = 0
                 last_tick = now
 
                 -- Heure
-                time_lbl.Text = os.date("%H:%M:%S")
+                time_val_lbl.Text = os.date("%H:%M:%S")
 
-                -- FPS
+                -- FPS coloré : vert / jaune / rouge
                 local hex = library.theme.accent:ToHex()
-                fps_lbl.Text = '<font color="#' .. hex .. '">' .. tostring(current_fps) .. '</font> <font color="#A5A0C0">fps</font>'
+                local fps_col = current_fps >= 50 and ("#" .. hex) or (current_fps >= 25 and "#EBD75A" or "#FF5555")
+                fps_val_lbl.Text = '<font color="' .. fps_col .. '">' .. tostring(current_fps) .. '</font><font color="#7A7595">fps</font>'
 
                 -- Ping
                 local ping_val = 20
@@ -2557,7 +2639,19 @@ function library:window(cfg)
                     end
                 end)
                 local ping_col = ping_val < 60 and "#00FF9F" or (ping_val < 120 and "#EBD75A" or "#FF5555")
-                ping_lbl.Text = '<font color="' .. ping_col .. '">' .. tostring(ping_val) .. '</font><font color="#A5A0C0">ms</font>'
+                ping_val_lbl.Text = '<font color="' .. ping_col .. '">' .. tostring(ping_val) .. '</font><font color="#7A7595">ms</font>'
+
+                -- Mise à jour couleur accent si thème changé
+                local new_hex = library.theme.accent:ToHex()
+                if new_hex ~= accent_hex then
+                    accent_hex = new_hex
+                    title_lbl.Text = get_styled_title(raw_name)
+                    glow_ring.BackgroundColor3 = Color3.fromRGB(
+                        math.clamp(math.floor(library.theme.accent.R*255 * 0.6), 0, 255),
+                        math.clamp(math.floor(library.theme.accent.G*255 * 0.4), 0, 255),
+                        math.clamp(math.floor(library.theme.accent.B*255 * 0.9), 0, 255)
+                    )
+                end
             end
         end)
 
@@ -2585,18 +2679,10 @@ function library:window(cfg)
                 wm.Visible = not wm.Visible
                 return wm.Visible
             end,
-            Show = function(self_wm)
-                wm.Visible = true
-            end,
-            Hide = function(self_wm)
-                wm.Visible = false
-            end,
-            IsVisible = function(self_wm)
-                return wm.Visible
-            end,
-            destroy = function(self_wm)
-                wm:Destroy()
-            end
+            Show = function(self_wm) wm.Visible = true end,
+            Hide = function(self_wm) wm.Visible = false end,
+            IsVisible = function(self_wm) return wm.Visible end,
+            destroy = function(self_wm) wm:Destroy() end
         }
 
         window_obj.Watermark = wm_obj
