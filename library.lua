@@ -2235,6 +2235,87 @@ function library:window(cfg)
         close_btn.BackgroundColor3 = Color3.fromRGB(24, 22, 34)
     end)
 
+    -- Mobile Toggle Button (bouton rond avec logo pour afficher/masquer le menu sur mobile)
+    -- Intégré dans l'UI (fusionné), pas en overlay
+    local mobile_toggle_btn = nil
+    if is_mobile_mode then
+        mobile_toggle_btn = library:create("TextButton", {
+            Name = "MobileToggleButton",
+            Size = UDim2.new(0, 40, 0, 40),
+            Position = UDim2.new(1, -80, 0, 10), -- À gauche du bouton fermer
+            BackgroundColor3 = self.theme.accent,
+            BorderSizePixel = 0,
+            Text = "",
+            AutoButtonColor = false,
+            ZIndex = 5,
+            Parent = main
+        })
+        make_corner(mobile_toggle_btn, 20) -- Parfaitement rond
+        make_stroke(mobile_toggle_btn, Color3.fromRGB(255, 255, 255), 2)
+
+        -- Logo sur le bouton mobile
+        local mobile_logo = library:create("ImageLabel", {
+            Name = "MobileLogo",
+            Size = UDim2.new(0, 24, 0, 24),
+            Position = UDim2.new(0.5, -12, 0.5, -12),
+            BackgroundTransparency = 1,
+            Image = logo_asset,
+            ImageColor3 = Color3.fromRGB(255, 255, 255),
+            ScaleType = Enum.ScaleType.Fit,
+            ZIndex = 6,
+            Parent = mobile_toggle_btn
+        })
+        make_corner(mobile_logo, 12)
+
+        -- Animation de pulse subtile pour indiquer qu'il est interactif
+        local pulse_tween = nil
+        local function start_pulse()
+            pulse_tween = library:tween(mobile_toggle_btn, { BackgroundTransparency = 0.3 }, Enum.EasingStyle.Sine, 1)
+            pulse_tween.Completed:Connect(function()
+                if mobile_toggle_btn and mobile_toggle_btn.Parent then
+                    library:tween(mobile_toggle_btn, { BackgroundTransparency = 0 }, Enum.EasingStyle.Sine, 1).Completed:Connect(function()
+                        if mobile_toggle_btn and mobile_toggle_btn.Parent then
+                            start_pulse()
+                        end
+                    end)
+                end
+            end)
+        end
+        start_pulse()
+
+        mobile_toggle_btn.MouseButton1Click:Connect(function()
+            library:Toggle()
+            -- Feedback visuel au clic
+            library:tween(mobile_toggle_btn, { Size = UDim2.new(0, 36, 0, 36) }, Enum.EasingStyle.Quad, 0.08).Completed:Connect(function()
+                library:tween(mobile_toggle_btn, { Size = UDim2.new(0, 40, 0, 40) }, Enum.EasingStyle.Back, 0.2)
+            end)
+        end)
+
+        mobile_toggle_btn.MouseEnter:Connect(function()
+            if pulse_tween then pulse_tween:Cancel() end
+            library:tween(mobile_toggle_btn, { BackgroundTransparency = 0, BackgroundColor3 = Color3.fromRGB(
+                math.clamp(math.floor(self.theme.accent.R * 255 * 1.2), 0, 255),
+                math.clamp(math.floor(self.theme.accent.G * 255 * 1.2), 0, 255),
+                math.clamp(math.floor(self.theme.accent.B * 255 * 1.2), 0, 255)
+            ) }, nil, 0.15)
+        end)
+
+        mobile_toggle_btn.MouseLeave:Connect(function()
+            library:tween(mobile_toggle_btn, { BackgroundColor3 = self.theme.accent }, nil, 0.15)
+            start_pulse()
+        end)
+
+        -- Mettre à jour la position du bouton mobile si la taille du menu change
+        local original_update = update_menu_responsive_bounds
+        update_menu_responsive_bounds = function()
+            original_update()
+            if mobile_toggle_btn and mobile_toggle_btn.Parent then
+                local w = main.AbsoluteSize.X
+                mobile_toggle_btn.Position = UDim2.new(1, -80, 0, 10)
+            end
+        end
+    end
+
     -- Zone de contenu sous la Search Bar
     local content_holder = library:create("Frame", {
         Name = "Content",
