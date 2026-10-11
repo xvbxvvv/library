@@ -247,6 +247,47 @@ local function make_draggable(frame, drag_handle)
     end)
 end
 
+local cached_logo = nil
+function library:resolve_logo(logo_input)
+    if cached_logo and (logo_input == nil or logo_input == "") then
+        return cached_logo
+    end
+
+    local fallback_rbx = "rbxassetid://135215559087473"
+
+    if type(logo_input) == "number" or (type(logo_input) == "string" and logo_input:match("^%d+$")) then
+        return "rbxassetid://" .. tostring(logo_input)
+    elseif type(logo_input) == "string" and (logo_input:match("^rbxassetid://") or logo_input:match("^rbxasset://") or logo_input:match("^rbxthumb://")) then
+        return logo_input
+    end
+
+    local ok, asset = pcall(function()
+        local getasset = getcustomasset or getsynasset or customasset
+        if getasset and writefile and isfile and readfile then
+            local filename = "ezwin_logo.png"
+            if not isfile(filename) then
+                local target_url = "https://raw.githubusercontent.com/xvbxvvv/logo/main/0fb782bd-42a8-46bd-8a52-7df5bee0812a.jpg"
+                local s, d = pcall(game.HttpGet, game, target_url)
+                if s and d and #d > 0 then
+                    pcall(writefile, filename, d)
+                end
+            end
+            if isfile(filename) then
+                return getasset(filename)
+            end
+        end
+    end)
+
+    if ok and type(asset) == "string" and asset ~= "" then
+        cached_logo = asset
+        return asset
+    end
+
+    cached_logo = fallback_rbx
+    return fallback_rbx
+end
+local resolve_logo = function(inp) return library:resolve_logo(inp) end
+
 -- ==============================================================================
 -- REGISTRY & THEME SYNCHRONIZATION
 -- ==============================================================================
@@ -346,6 +387,29 @@ function library:UpdateTheme()
                 end
             end)
         end
+    end
+
+    -- 4. Update Watermark colors and accents
+    if library.Watermark and library.Watermark.frame then
+        pcall(function()
+            local wm_frame = library.Watermark.frame
+            local wm_stroke = wm_frame:FindFirstChildOfClass("UIStroke")
+            if wm_stroke then wm_stroke.Color = library.Scheme.OutlineColor end
+
+            local top = wm_frame:FindFirstChild("TopStripe")
+            if top then
+                local grad = top:FindFirstChildOfClass("UIGradient")
+                if grad then
+                    grad.Color = ColorSequence.new({
+                        ColorSequenceKeypoint.new(0, library.Scheme.AccentColor),
+                        ColorSequenceKeypoint.new(0.65, library.Scheme.AccentColor),
+                        ColorSequenceKeypoint.new(1, Color3.fromRGB(math.clamp(math.floor(library.Scheme.AccentColor.R * 255 + 50), 0, 255), math.clamp(math.floor(library.Scheme.AccentColor.G * 255 + 40), 0, 255), math.clamp(math.floor(library.Scheme.AccentColor.B * 255 + 40), 0, 255))),
+                    })
+                else
+                    top.BackgroundColor3 = library.Scheme.AccentColor
+                end
+            end
+        end)
     end
 end
 
@@ -2237,76 +2301,282 @@ function library:window(cfg)
         return dialog_obj
     end
 
-    -- Watermark (gamesense style avec auto-resize et show/hide)
+    -- Watermark ultra class et moderne (gamesense / skeet.cc style avec logo officiel)
     function window_obj:watermark(wcfg)
         wcfg = wcfg or {}
-        local tag_name = wcfg.name or wcfg.text or "ezwin.cc"
-        if tag_name:lower():match("^gamesense") then
-            tag_name = tag_name:gsub("^gamesense", "ezwin.cc"):gsub("^GameSense", "ezwin.cc")
-        end
+        local raw_name = wcfg.name or wcfg.text or "ezwin.cc"
 
         local is_touch = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
         local wm_pos = wcfg.position or (is_touch and UDim2.new(0, 10, 0, math.max(10, GuiInset + 4)) or UDim2.new(0, 20, 0, 20))
 
+        -- Conteneur Principal Watermark Capsule
         local wm = library:create("Frame", {
             Name = "Watermark",
-            AutomaticSize = Enum.AutomaticSize.X,
-            Size = UDim2.new(0, 0, 0, 20),
+            AutomaticSize = Enum.AutomaticSize.XY,
+            Size = UDim2.new(0, 0, 0, 24),
             Position = wm_pos,
-            BackgroundColor3 = Color3.fromRGB(15, 13, 22),
+            BackgroundColor3 = Color3.fromRGB(14, 12, 22),
             BorderSizePixel = 0,
             Visible = (wcfg.visible ~= false),
+            ZIndex = 50,
             Parent = screen
         })
-        make_corner(wm, 4)
-        make_stroke(wm, library.theme.border, 1)
+        make_corner(wm, 5)
+        local wm_stroke = make_stroke(wm, library.theme.border, 1)
         make_draggable(wm)
 
+        -- Barre supérieure d'accentuation avec dégradé subtil
         local top_stripe = library:create("Frame", {
+            Name = "TopStripe",
             Size = UDim2.new(1, 0, 0, 2),
-            BackgroundColor3 = library.theme.accent,
+            Position = UDim2.new(0, 0, 0, 0),
+            BackgroundColor3 = Color3.fromRGB(255, 255, 255),
             BorderSizePixel = 0,
+            ZIndex = 52,
             Parent = wm
         })
-        library:AddToRegistry(top_stripe, { BackgroundColor = "AccentColor" })
         make_corner(top_stripe, 2)
 
-        library:create("UIPadding", {
-            PaddingLeft = UDim.new(0, 9),
-            PaddingRight = UDim.new(0, 9),
+        local top_gradient = library:create("UIGradient", {
+            Name = "StripeGradient",
+            Rotation = 0,
+            Color = ColorSequence.new({
+                ColorSequenceKeypoint.new(0, library.theme.accent),
+                ColorSequenceKeypoint.new(0.65, library.theme.accent),
+                ColorSequenceKeypoint.new(1, Color3.fromRGB(math.clamp(math.floor(library.theme.accent.R * 255 + 50), 0, 255), math.clamp(math.floor(library.theme.accent.G * 255 + 40), 0, 255), math.clamp(math.floor(library.theme.accent.B * 255 + 40), 0, 255))),
+            }),
+            Parent = top_stripe
+        })
+        library:AddToRegistry(top_stripe, { BackgroundColor = "AccentColor" })
+
+        -- Conteneur horizontal avec padding
+        local content = library:create("Frame", {
+            Name = "Content",
+            AutomaticSize = Enum.AutomaticSize.XY,
+            Size = UDim2.new(0, 0, 0, 24),
+            BackgroundTransparency = 1,
+            ZIndex = 51,
             Parent = wm
         })
 
-        local lbl = library:create("TextLabel", {
-            Size = UDim2.new(0, 0, 1, 0),
+        library:create("UIPadding", {
+            PaddingLeft = UDim.new(0, 6),
+            PaddingRight = UDim.new(0, 9),
+            PaddingTop = UDim.new(0, 2),
+            PaddingBottom = UDim.new(0, 2),
+            Parent = content
+        })
+
+        library:create("UIListLayout", {
+            FillDirection = Enum.FillDirection.Horizontal,
+            VerticalAlignment = Enum.VerticalAlignment.Center,
+            HorizontalAlignment = Enum.HorizontalAlignment.Left,
+            Padding = UDim.new(0, 7),
+            SortOrder = Enum.SortOrder.LayoutOrder,
+            Parent = content
+        })
+
+        -- 1. Mini Logo Box avec l'image du logo de l'utilisateur
+        local logo_asset = resolve_logo(wcfg.logo or wcfg.Logo or (cfg and (cfg.Logo or cfg.logo)))
+        local logo_container = library:create("Frame", {
+            Name = "LogoContainer",
+            Size = UDim2.new(0, 16, 0, 16),
+            BackgroundColor3 = Color3.fromRGB(22, 19, 32),
+            BorderSizePixel = 0,
+            LayoutOrder = 1,
+            ZIndex = 52,
+            Parent = content
+        })
+        make_corner(logo_container, 3)
+        make_stroke(logo_container, Color3.fromRGB(48, 40, 72), 1)
+
+        local logo_image = library:create("ImageLabel", {
+            Name = "LogoImage",
+            Size = UDim2.new(1, -2, 1, -2),
+            Position = UDim2.new(0, 1, 0, 1),
+            BackgroundTransparency = 1,
+            Image = logo_asset,
+            ScaleType = Enum.ScaleType.Fit,
+            ZIndex = 53,
+            Parent = logo_container
+        })
+        make_corner(logo_image, 3)
+
+        -- Fonction pour formater le titre avec élégance (RichText)
+        local function get_styled_title(name_str)
+            name_str = tostring(name_str or "ezwin.cc")
+            local hex = library.theme.accent:ToHex()
+            if name_str:lower() == "gamesense" then
+                return '<font color="#FFFFFF">game</font><font color="#' .. hex .. '">sense</font>'
+            elseif name_str:lower() == "ezwin.cc" or name_str:lower():match("^ezwin") then
+                return '<font color="#FFFFFF">ezwin</font><font color="#' .. hex .. '">.cc</font>'
+            else
+                local p, s = name_str:match("^(.-)(%..+)$")
+                if p and s then
+                    return '<font color="#FFFFFF">' .. p .. '</font><font color="#' .. hex .. '">' .. s .. '</font>'
+                end
+                return '<font color="#FFFFFF">' .. name_str .. '</font>'
+            end
+        end
+
+        -- 2. Label Nom du Cheat (Styled)
+        local title_lbl = library:create("TextLabel", {
+            Name = "TitleLabel",
             AutomaticSize = Enum.AutomaticSize.X,
+            Size = UDim2.new(0, 0, 1, 0),
             BackgroundTransparency = 1,
             FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.Bold, Enum.FontStyle.Normal),
-            Text = tag_name .. " | " .. (LocalPlayer.DisplayName or LocalPlayer.Name) .. " | 00:00 | 60 fps",
-            TextColor3 = Color3.fromRGB(240, 240, 250),
+            RichText = true,
+            Text = get_styled_title(raw_name),
+            TextColor3 = Color3.fromRGB(255, 255, 255),
             TextSize = 11,
-            Parent = wm
+            LayoutOrder = 2,
+            ZIndex = 52,
+            Parent = content
         })
 
-        local last = tick()
-        local frames = 0
+        local function make_sep(order)
+            local sep = library:create("Frame", {
+                Name = "Sep_" .. tostring(order),
+                Size = UDim2.new(0, 1, 0, 10),
+                BackgroundColor3 = Color3.fromRGB(50, 44, 72),
+                BorderSizePixel = 0,
+                LayoutOrder = order,
+                ZIndex = 52,
+                Parent = content
+            })
+            return sep
+        end
+
+        -- Séparateur 1
+        make_sep(3)
+
+        -- 3. Label Pseudo Joueur
+        local user_lbl = library:create("TextLabel", {
+            Name = "UserLabel",
+            AutomaticSize = Enum.AutomaticSize.X,
+            Size = UDim2.new(0, 0, 1, 0),
+            BackgroundTransparency = 1,
+            FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.SemiBold, Enum.FontStyle.Normal),
+            Text = tostring(LocalPlayer and (LocalPlayer.DisplayName or LocalPlayer.Name) or "Player"),
+            TextColor3 = Color3.fromRGB(215, 215, 225),
+            TextSize = 11,
+            LayoutOrder = 4,
+            ZIndex = 52,
+            Parent = content
+        })
+
+        -- Séparateur 2
+        make_sep(5)
+
+        -- 4. Label Heure en direct
+        local time_lbl = library:create("TextLabel", {
+            Name = "TimeLabel",
+            AutomaticSize = Enum.AutomaticSize.X,
+            Size = UDim2.new(0, 0, 1, 0),
+            BackgroundTransparency = 1,
+            FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal),
+            Text = os.date("%H:%M:%S"),
+            TextColor3 = Color3.fromRGB(175, 170, 195),
+            TextSize = 11,
+            LayoutOrder = 6,
+            ZIndex = 52,
+            Parent = content
+        })
+
+        -- Séparateur 3
+        make_sep(7)
+
+        -- 5. Label Ping en direct
+        local ping_lbl = library:create("TextLabel", {
+            Name = "PingLabel",
+            AutomaticSize = Enum.AutomaticSize.X,
+            Size = UDim2.new(0, 0, 1, 0),
+            BackgroundTransparency = 1,
+            FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.SemiBold, Enum.FontStyle.Normal),
+            RichText = true,
+            Text = '<font color="#00FF9F">20</font><font color="#A5A0C0">ms</font>',
+            TextColor3 = Color3.fromRGB(255, 255, 255),
+            TextSize = 11,
+            LayoutOrder = 8,
+            ZIndex = 52,
+            Parent = content
+        })
+
+        -- Séparateur 4
+        make_sep(9)
+
+        -- 6. Label FPS en direct
+        local fps_lbl = library:create("TextLabel", {
+            Name = "FPSLabel",
+            AutomaticSize = Enum.AutomaticSize.X,
+            Size = UDim2.new(0, 0, 1, 0),
+            BackgroundTransparency = 1,
+            FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.Bold, Enum.FontStyle.Normal),
+            RichText = true,
+            Text = '<font color="#' .. library.theme.accent:ToHex() .. '">60</font> <font color="#A5A0C0">fps</font>',
+            TextColor3 = Color3.fromRGB(255, 255, 255),
+            TextSize = 11,
+            LayoutOrder = 10,
+            ZIndex = 52,
+            Parent = content
+        })
+
+        -- Hover effect subtil sur la capsule
+        wm.MouseEnter:Connect(function()
+            wm_stroke.Color = library.theme.accent
+        end)
+        wm.MouseLeave:Connect(function()
+            wm_stroke.Color = library.theme.border
+        end)
+
+        -- Calcul et mise à jour temps réel des FPS, Ping et Heure
+        local last_tick = tick()
+        local frame_count = 0
         library:connection(RunService.RenderStepped, function()
-            frames = frames + 1
-            if tick() - last >= 1 then
-                local date = os.date("*t")
-                local h = string.format("%02d:%02d", date.hour, date.min)
-                local fps = math.floor(frames / (tick() - last))
-                lbl.Text = tag_name .. " | " .. (LocalPlayer.DisplayName or LocalPlayer.Name) .. " | " .. h .. " | " .. fps .. " fps"
-                frames = 0
-                last = tick()
+            frame_count = frame_count + 1
+            local now = tick()
+            if now - last_tick >= 1 then
+                local current_fps = math.floor(frame_count / (now - last_tick))
+                frame_count = 0
+                last_tick = now
+
+                -- Heure
+                time_lbl.Text = os.date("%H:%M:%S")
+
+                -- FPS
+                local hex = library.theme.accent:ToHex()
+                fps_lbl.Text = '<font color="#' .. hex .. '">' .. tostring(current_fps) .. '</font> <font color="#A5A0C0">fps</font>'
+
+                -- Ping
+                local ping_val = 20
+                pcall(function()
+                    local stats = game:GetService("Stats")
+                    if stats and stats.Network and stats.Network.ServerStatsItem and stats.Network.ServerStatsItem["Data Ping"] then
+                        ping_val = math.floor(stats.Network.ServerStatsItem["Data Ping"]:GetValue())
+                    end
+                end)
+                local ping_col = ping_val < 60 and "#00FF9F" or (ping_val < 120 and "#EBD75A" or "#FF5555")
+                ping_lbl.Text = '<font color="' .. ping_col .. '">' .. tostring(ping_val) .. '</font><font color="#A5A0C0">ms</font>'
             end
         end)
 
         local wm_obj = {
             frame = wm,
-            label = lbl,
-            set = function(new_text) lbl.Text = tostring(new_text) end,
-            SetText = function(self_wm, new_text) lbl.Text = tostring(new_text) end,
+            label = title_lbl,
+            logo = logo_image,
+            get_styled_title = get_styled_title,
+            set = function(new_text)
+                title_lbl.Text = get_styled_title(new_text)
+            end,
+            SetText = function(self_wm, new_text)
+                if type(self_wm) == "string" then new_text = self_wm end
+                title_lbl.Text = get_styled_title(new_text)
+            end,
+            SetLogo = function(self_wm, new_logo)
+                if type(self_wm) == "string" or type(self_wm) == "number" then new_logo = self_wm end
+                logo_image.Image = resolve_logo(new_logo)
+            end,
             SetVisible = function(self_wm, visible)
                 if type(self_wm) == "boolean" then visible = self_wm end
                 wm.Visible = (visible == true)
@@ -5361,6 +5631,18 @@ function library:Toggle(state)
         self.screen.Enabled = true
     end
     self.Toggled = state
+end
+
+function library:watermark(wcfg)
+    if self.Window and self.Window.watermark then
+        return self.Window:watermark(wcfg)
+    end
+end
+
+function library:floating(fcfg)
+    if self.Window and self.Window.floating then
+        return self.Window:floating(fcfg)
+    end
 end
 
 function library:SetWatermarkVisibility(visible)
