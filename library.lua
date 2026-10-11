@@ -909,7 +909,8 @@ function library:BuildESPPreview(parent, options)
     local last_rot_pos = nil
     local last_click_time = 0
 
-    holder.InputBegan:Connect(function(input)
+    holder.InputBegan:Connect(function(input, gpe)
+        if gpe then return end   -- already handled by another GUI = stop propagation
         if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
             local now = tick()
             if now - last_click_time < 0.28 then
@@ -925,7 +926,7 @@ function library:BuildESPPreview(parent, options)
         end
     end)
 
-    holder.InputChanged:Connect(function(input)
+    holder.InputChanged:Connect(function(input, gpe)
         if (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) and is_dragging_rot and last_rot_pos then
             local delta = input.Position - last_rot_pos
             last_rot_pos = input.Position
@@ -935,7 +936,7 @@ function library:BuildESPPreview(parent, options)
         end
     end)
 
-    UserInputService.InputEnded:Connect(function(input)
+    holder.InputEnded:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
             is_dragging_rot = false
             last_rot_pos = nil
@@ -1024,42 +1025,138 @@ function library:BuildESPPreview(parent, options)
         render()
     end)
 
-    return {
-        frame = holder,
-        viewport = viewport,
-        connection = char_conn,
-        set_box = function(v) show_box = v; box.Visible = v end,
-        set_skeleton = function(v) show_skel = v; render() end,
-        set_character = function(v) show_char = v; render() end,
-        set_transparency = function(v) char_transparency = v; render() end,
-        set_health = function(v) health_bg.Visible = v end,
-        set_name = function(v) name_label.Text = v end,
-        set_image = function(src)
-            image_src = src
-            image_label.Image = resolve_image(src)
-            image_label.Visible = src ~= nil and src ~= ""
-            if src ~= nil and src ~= "" and options.character == nil then
-                show_char = false
-                render()
-            end
-        end,
-        set_player = function(n) name_label.Text = n end,
-        set_color = function(c) esp_color = c; box_stroke.Color = c; render() end,
-        set_health_percent = function(p)
-            health_fill.Size = UDim2.new(math.clamp(p, 0, 1), 0, 1, 0)
-        end,
-        refresh = render,
-        reset_rotation = function()
-            current_yaw = 0
-            current_pitch = 0
-            update_cam_transform()
-        end,
-        set_rotation = function(yaw, pitch)
-            current_yaw = yaw or 0
-            current_pitch = pitch or 0
-            update_cam_transform()
-        end,
-    }
+    -- ── Objet retourné par BuildESPPreview
+    local original_parent = parent
+    local is_detached = false
+    local floating_window = nil
+
+    local esp_obj = {}
+    esp_obj.frame = holder
+    esp_obj.viewport = viewport
+    esp_obj.connection = char_conn
+    esp_obj.set_box           = function(v) show_box = v; box.Visible = v end
+    esp_obj.set_skeleton      = function(v) show_skel = v; render() end
+    esp_obj.set_character     = function(v) show_char = v; render() end
+    esp_obj.set_transparency  = function(v) char_transparency = v; render() end
+    esp_obj.set_health        = function(v) health_bg.Visible = v end
+    esp_obj.set_name          = function(v) name_label.Text = v end
+    esp_obj.set_player        = function(n) name_label.Text = n end
+    esp_obj.set_color         = function(c) esp_color = c; box_stroke.Color = c; render() end
+    esp_obj.set_health_percent = function(p)
+        health_fill.Size = UDim2.new(math.clamp(p, 0, 1), 0, 1, 0)
+    end
+    esp_obj.refresh           = render
+    esp_obj.reset_rotation    = function()
+        current_yaw = 0
+        current_pitch = 0
+        update_cam_transform()
+    end
+    esp_obj.set_rotation = function(yaw, pitch)
+        current_yaw = yaw or 0
+        current_pitch = pitch or 0
+        update_cam_transform()
+    end
+
+    -- ── Detach : sort le preview du menu et le met dans une fenêtre flottante
+    esp_obj.Detach = function(self_obj)
+        if is_detached then return end
+        is_detached = true
+
+        local cam = workspace.CurrentCamera
+        local vp_size = (cam and cam.ViewportSize.X > 0) and cam.ViewportSize or Vector2.new(1280, 720)
+
+        -- Fenêtre flottante
+        floating_window = library:create("Frame", {
+            Name = "FloatingESP_Detached",
+            Size = UDim2.new(0, 200, 0, holder.AbsoluteSize.Y + 32),
+            Position = UDim2.new(0, math.floor(vp_size.X * 0.72), 0, math.floor(vp_size.Y * 0.2)),
+            BackgroundColor3 = library.theme.main_bg,
+            BorderSizePixel = 0,
+            ZIndex = 40,
+            Parent = screen
+        })
+        make_corner(floating_window, 5)
+        make_stroke(floating_window, library.theme.border, 1)
+
+        -- Header draggable
+        local fw_header = library:create("Frame", {
+            Name = "Header",
+            Size = UDim2.new(1, 0, 0, 24),
+            BackgroundColor3 = library.theme.panel_bg,
+            BorderSizePixel = 0,
+            ZIndex = 41,
+            Parent = floating_window
+        })
+        make_corner(fw_header, 5)
+        make_draggable(floating_window, fw_header)
+
+        -- Ligne accent
+        local fw_accent = library:create("Frame", {
+            Size = UDim2.new(1, 0, 0, 2),
+            Position = UDim2.new(0, 0, 0, 0),
+            BackgroundColor3 = library.theme.accent,
+            BorderSizePixel = 0,
+            ZIndex = 42,
+            Parent = fw_header
+        })
+        make_corner(fw_accent, 2)
+
+        library:create("TextLabel", {
+            Size = UDim2.new(1, -70, 1, 0),
+            Position = UDim2.new(0, 8, 0, 0),
+            BackgroundTransparency = 1,
+            Font = Enum.Font.SourceSansBold,
+            Text = "ESP Preview",
+            TextColor3 = library.theme.text,
+            TextSize = 11,
+            TextXAlignment = Enum.TextXAlignment.Left,
+            ZIndex = 42,
+            Parent = fw_header
+        })
+
+        -- Bouton Rattacher
+        local reattach_btn = library:create("TextButton", {
+            Name = "ReattachBtn",
+            Size = UDim2.new(0, 60, 0, 16),
+            Position = UDim2.new(1, -66, 0.5, -8),
+            BackgroundColor3 = library.theme.accent,
+            BorderSizePixel = 0,
+            Text = "Rattacher",
+            TextColor3 = Color3.fromRGB(255, 255, 255),
+            Font = Enum.Font.SourceSansBold,
+            TextSize = 10,
+            ZIndex = 43,
+            Parent = fw_header
+        })
+        make_corner(reattach_btn, 3)
+        reattach_btn.MouseButton1Click:Connect(function()
+            esp_obj:Attach()
+        end)
+
+        -- Déplacer le holder dans la fenêtre flottante
+        holder.Size = UDim2.new(1, -8, 1, -32)
+        holder.Position = UDim2.new(0, 4, 0, 28)
+        holder.Parent = floating_window
+    end
+
+    -- ── Attach : remet le preview dans la section d'origine
+    esp_obj.Attach = function(self_obj)
+        if not is_detached then return end
+        is_detached = false
+
+        holder.Size = UDim2.new(1, 0, 0, options.height or 200)
+        holder.Position = UDim2.new(0, 0, 0, 0)
+        holder.Parent = original_parent
+
+        if floating_window then
+            floating_window:Destroy()
+            floating_window = nil
+        end
+    end
+
+    esp_obj.is_detached = function() return is_detached end
+
+    return esp_obj
 end
 
 -- ==============================================================================
@@ -2312,11 +2409,11 @@ function library:window(cfg)
         local accent = library.theme.accent
         local accent_hex = accent:ToHex()
 
-        -- ── Fond glassmorphisme (capsule principale, hauteur 32px)
+        -- ── Fond glassmorphisme (capsule principale, hauteur 26px)
         local wm = library:create("Frame", {
             Name = "Watermark",
             AutomaticSize = Enum.AutomaticSize.X,
-            Size = UDim2.new(0, 0, 0, 32),
+            Size = UDim2.new(0, 0, 0, 26),
             Position = wm_pos,
             BackgroundColor3 = Color3.fromRGB(11, 9, 18),
             BorderSizePixel = 0,
@@ -2389,9 +2486,9 @@ function library:window(cfg)
             Parent = wm
         })
         library:create("UIPadding", {
-            PaddingLeft  = UDim.new(0, 10),
-            PaddingRight = UDim.new(0, 12),
-            PaddingTop   = UDim.new(0, 4),
+            PaddingLeft  = UDim.new(0, 8),
+            PaddingRight = UDim.new(0, 10),
+            PaddingTop   = UDim.new(0, 2),
             PaddingBottom = UDim.new(0, 2),
             Parent = content
         })
@@ -2410,7 +2507,7 @@ function library:window(cfg)
         -- Anneau extérieur "glow" pulsant
         local glow_ring = library:create("Frame", {
             Name          = "GlowRing",
-            Size          = UDim2.new(0, 26, 0, 26),
+            Size          = UDim2.new(0, 20, 0, 20),
             BackgroundColor3 = Color3.fromRGB(
                 math.clamp(math.floor(accent.R*255 * 0.6), 0, 255),
                 math.clamp(math.floor(accent.G*255 * 0.4), 0, 255),
@@ -2426,7 +2523,7 @@ function library:window(cfg)
 
         local logo_container = library:create("Frame", {
             Name = "LogoContainer",
-            Size = UDim2.new(0, 22, 0, 22),
+            Size = UDim2.new(0, 16, 0, 16),
             Position = UDim2.new(0, 2, 0, 2),
             BackgroundColor3 = Color3.fromRGB(24, 20, 36),
             BorderSizePixel = 0,
@@ -2485,7 +2582,7 @@ function library:window(cfg)
             RichText = true,
             Text = get_styled_title(raw_name),
             TextColor3 = Color3.fromRGB(255, 255, 255),
-            TextSize = 13,
+            TextSize = 11,
             LayoutOrder = 2,
             ZIndex = 52,
             Parent = content
@@ -2513,7 +2610,7 @@ function library:window(cfg)
             local badge = library:create("Frame", {
                 Name = "Badge_" .. tostring(order),
                 AutomaticSize = Enum.AutomaticSize.X,
-                Size = UDim2.new(0, 0, 0, 22),
+                Size = UDim2.new(0, 0, 0, 18),
                 BackgroundColor3 = Color3.fromRGB(22, 18, 34),
                 BorderSizePixel = 0,
                 LayoutOrder = order,
@@ -2533,22 +2630,7 @@ function library:window(cfg)
                 SortOrder = Enum.SortOrder.LayoutOrder,
                 Parent = badge
             })
-            -- Icone texte (mini)
-            if icon_text and icon_text ~= "" then
-                library:create("TextLabel", {
-                    Name = "Icon",
-                    AutomaticSize = Enum.AutomaticSize.X,
-                    Size = UDim2.new(0, 0, 1, 0),
-                    BackgroundTransparency = 1,
-                    FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal),
-                    Text = icon_text,
-                    TextColor3 = Color3.fromRGB(100, 95, 130),
-                    TextSize = 10,
-                    LayoutOrder = 1,
-                    ZIndex = 53,
-                    Parent = badge
-                })
-            end
+            -- Pas d'icône (evite les [] avec les polices Roblox)
             -- Valeur
             local val_lbl = library:create("TextLabel", {
                 Name = "Value",
@@ -2559,21 +2641,21 @@ function library:window(cfg)
                 RichText = true,
                 Text = value_text,
                 TextColor3 = value_color or Color3.fromRGB(220, 218, 235),
-                TextSize = 11,
-                LayoutOrder = 2,
+                TextSize = 10,
+                LayoutOrder = 1,
                 ZIndex = 53,
                 Parent = badge
             })
             return badge, val_lbl
         end
 
-        local _, user_val_lbl = make_badge(4, "◈", user_name, Color3.fromRGB(210, 208, 235))
+        local _, user_val_lbl = make_badge(4, "", user_name, Color3.fromRGB(210, 208, 235))
         make_sep(5)
-        local _, time_val_lbl = make_badge(6, "◷", os.date("%H:%M:%S"), Color3.fromRGB(185, 180, 210))
+        local _, time_val_lbl = make_badge(6, "", os.date("%H:%M:%S"), Color3.fromRGB(185, 180, 210))
         make_sep(7)
-        local _, ping_val_lbl = make_badge(8, "⬡", '<font color="#00FF9F">20</font><font color="#7A7595">ms</font>', Color3.fromRGB(255,255,255))
+        local _, ping_val_lbl = make_badge(8, "", '<font color="#00FF9F">20</font><font color="#7A7595">ms</font>', Color3.fromRGB(255,255,255))
         make_sep(9)
-        local _, fps_val_lbl = make_badge(10, "◈", '<font color="#' .. accent_hex .. '">60</font><font color="#7A7595">fps</font>', Color3.fromRGB(255,255,255))
+        local _, fps_val_lbl = make_badge(10, "", '<font color="#' .. accent_hex .. '">60</font><font color="#7A7595">fps</font>', Color3.fromRGB(255,255,255))
 
         -- ── Hover : bordure accent animée + léger fondu fond
         wm.MouseEnter:Connect(function()
@@ -5022,10 +5104,68 @@ function library:window(cfg)
                     if options.floating or options.detached then
                         return window_obj:esp_preview(options)
                     end
-                    return library:BuildESPPreview(scroll, options)
+
+                    local esp_obj = library:BuildESPPreview(scroll, options)
+
+                    -- ── Barre de boutons Détacher / Rattacher
+                    local btn_row = library:create("Frame", {
+                        Name = "ESPBtnRow",
+                        Size = UDim2.new(1, 0, 0, 22),
+                        BackgroundTransparency = 1,
+                        Parent = scroll,
+                    })
+                    library:create("UIListLayout", {
+                        FillDirection = Enum.FillDirection.Horizontal,
+                        VerticalAlignment = Enum.VerticalAlignment.Center,
+                        HorizontalAlignment = Enum.HorizontalAlignment.Center,
+                        Padding = UDim.new(0, 6),
+                        Parent = btn_row
+                    })
+
+                    local function make_esp_btn(label, color, callback)
+                        local btn = library:create("TextButton", {
+                            Name = label .. "Btn",
+                            Size = UDim2.new(0, 88, 0, 18),
+                            BackgroundColor3 = color,
+                            BorderSizePixel = 0,
+                            Text = label,
+                            TextColor3 = Color3.fromRGB(255, 255, 255),
+                            Font = Enum.Font.SourceSansBold,
+                            TextSize = 11,
+                            AutoButtonColor = false,
+                            Parent = btn_row
+                        })
+                        make_corner(btn, 4)
+                        btn.MouseButton1Click:Connect(callback)
+                        -- hover effect
+                        btn.MouseEnter:Connect(function()
+                            TweenService:Create(btn, TweenInfo.new(0.12), {
+                                BackgroundColor3 = Color3.fromRGB(
+                                    math.clamp(math.floor(color.R*255 + 20), 0, 255),
+                                    math.clamp(math.floor(color.G*255 + 20), 0, 255),
+                                    math.clamp(math.floor(color.B*255 + 20), 0, 255)
+                                )
+                            }):Play()
+                        end)
+                        btn.MouseLeave:Connect(function()
+                            TweenService:Create(btn, TweenInfo.new(0.15), { BackgroundColor3 = color }):Play()
+                        end)
+                        return btn
+                    end
+
+                    local accent  = library.theme.accent
+                    local dark    = Color3.fromRGB(38, 34, 55)
+
+                    local detach_btn  = make_esp_btn("[>] Detacher",  accent, function() esp_obj:Detach() end)
+                    local attach_btn  = make_esp_btn("[<] Rattacher", dark,   function() esp_obj:Attach() end)
+
+                    esp_obj.detach_btn = detach_btn
+                    esp_obj.attach_btn = attach_btn
+                    return esp_obj
                 end
                 section_obj.esppreview = section_obj.ESPPreview
                 section_obj.ESP = section_obj.ESPPreview
+
 
                 return section_obj
             end
