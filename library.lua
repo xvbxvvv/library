@@ -220,7 +220,8 @@ end
 local function make_draggable(frame, drag_handle)
     local handle = drag_handle or frame
     local dragging, dragStart, startPos = false, nil, nil
-    handle.InputBegan:Connect(function(input)
+    handle.InputBegan:Connect(function(input, gpe)
+        if gpe then return end   -- input déjà consommé par un child (ex: ESP preview)
         if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
             dragging = true
             dragStart = input.Position
@@ -761,12 +762,16 @@ function library:BuildESPPreview(parent, options)
     local char_transparency = options.transparency
     if char_transparency == nil then char_transparency = 0.35 end
 
-    local holder = library:create("Frame", {
+    -- ImageButton au lieu de Frame : consomme les inputs (gpe=true pour les parents = menu ne bouge pas)
+    local holder = library:create("ImageButton", {
         Parent = parent,
         Name = "ESPPreview",
         Size = UDim2.new(1, 0, 0, height),
         BackgroundColor3 = Color3.fromRGB(11, 11, 11),
         BorderSizePixel = 0,
+        Image = "",
+        AutoButtonColor = false,
+        SelectionImageObject = Instance.new("Frame"),
     })
     make_corner(holder, 3)
     make_stroke(holder, library.theme.border_dark, 1)
@@ -3188,52 +3193,145 @@ function library:window(cfg)
     -- Floating ESP preview
     function window_obj:esp_preview(options)
         options = options or {}
-        local size = options.size or UDim2.new(0, 190, 0, 252)
-        local pos = options.position or UDim2.new(0.5, 270, 0.5, -126)
+        local esp_h = options.height or 210
+        local win_w = 200
+        local win_h = esp_h + 30   -- header 30px
         local title = options.title or "ESP Preview"
 
+        -- Position par défaut : à droite du menu
+        local cam = workspace.CurrentCamera
+        local vp = (cam and cam.ViewportSize.X > 200) and cam.ViewportSize or Vector2.new(1280, 720)
+        local default_pos = options.position or UDim2.new(0, math.floor(vp.X * 0.68), 0, math.floor(vp.Y * 0.18))
+
+        -- Fenêtre flottante principale
         local fw = library:create("Frame", {
             Name = "FloatingESP",
-            Size = size,
-            Position = pos,
-            BackgroundColor3 = library.theme.main_bg,
+            Size = UDim2.new(0, win_w, 0, win_h),
+            Position = default_pos,
+            BackgroundColor3 = Color3.fromRGB(11, 9, 18),
             BorderSizePixel = 0,
+            ZIndex = 45,
             Parent = screen,
         })
-        make_corner(fw, 3)
-        make_stroke(fw, library.theme.border, 1)
+        make_corner(fw, 6)
+        local fw_stroke = make_stroke(fw, library.theme.border, 1)
 
+        -- Gradient de fond
+        library:create("UIGradient", {
+            Rotation = 120,
+            Color = ColorSequence.new({
+                ColorSequenceKeypoint.new(0, Color3.fromRGB(18, 14, 28)),
+                ColorSequenceKeypoint.new(1, Color3.fromRGB(10, 8, 18)),
+            }),
+            Parent = fw
+        })
+
+        -- Header draggable
         local header = library:create("Frame", {
-            Size = UDim2.new(1, 0, 0, 20),
-            BackgroundColor3 = library.theme.panel_bg,
+            Name = "Header",
+            Size = UDim2.new(1, 0, 0, 28),
+            BackgroundColor3 = Color3.fromRGB(16, 13, 26),
             BorderSizePixel = 0,
+            ZIndex = 46,
             Parent = fw,
         })
-        make_corner(header, 3)
+        make_corner(header, 6)
         make_draggable(fw, header)
 
+        -- Ligne accent en haut du header
+        local accent_line = library:create("Frame", {
+            Name = "AccentLine",
+            Size = UDim2.new(1, 0, 0, 2),
+            BackgroundColor3 = library.theme.accent,
+            BorderSizePixel = 0,
+            ZIndex = 47,
+            Parent = header,
+        })
+        make_corner(accent_line, 2)
+        local acc_grad = library:create("UIGradient", {
+            Rotation = 0,
+            Color = ColorSequence.new({
+                ColorSequenceKeypoint.new(0, library.theme.accent),
+                ColorSequenceKeypoint.new(0.6, library.theme.accent),
+                ColorSequenceKeypoint.new(1, Color3.fromRGB(
+                    math.clamp(math.floor(library.theme.accent.R*255+55), 0, 255),
+                    math.clamp(math.floor(library.theme.accent.G*255+45), 0, 255),
+                    math.clamp(math.floor(library.theme.accent.B*255+50), 0, 255)
+                )),
+            }),
+            Parent = accent_line
+        })
+
+        -- Titre
         library:create("TextLabel", {
-            Size = UDim2.new(1, -8, 1, 0),
-            Position = UDim2.new(0, 8, 0, 0),
+            Size = UDim2.new(1, -34, 1, 0),
+            Position = UDim2.new(0, 9, 0, 0),
             BackgroundTransparency = 1,
             Font = Enum.Font.SourceSansBold,
             Text = title,
             TextColor3 = library.theme.text,
             TextSize = 11,
             TextXAlignment = Enum.TextXAlignment.Left,
+            ZIndex = 47,
             Parent = header,
         })
 
+        -- Bouton Fermer [x]
+        local close_btn = library:create("TextButton", {
+            Name = "CloseBtn",
+            Size = UDim2.new(0, 18, 0, 18),
+            Position = UDim2.new(1, -22, 0.5, -9),
+            BackgroundColor3 = Color3.fromRGB(70, 35, 55),
+            BorderSizePixel = 0,
+            Text = "x",
+            TextColor3 = Color3.fromRGB(255, 120, 120),
+            Font = Enum.Font.SourceSansBold,
+            TextSize = 11,
+            ZIndex = 48,
+            Parent = header,
+        })
+        make_corner(close_btn, 4)
+        close_btn.MouseButton1Click:Connect(function() fw:Destroy() end)
+        close_btn.MouseEnter:Connect(function()
+            TweenService:Create(close_btn, TweenInfo.new(0.12), {
+                BackgroundColor3 = Color3.fromRGB(120, 40, 60)
+            }):Play()
+        end)
+        close_btn.MouseLeave:Connect(function()
+            TweenService:Create(close_btn, TweenInfo.new(0.15), {
+                BackgroundColor3 = Color3.fromRGB(70, 35, 55)
+            }):Play()
+        end)
+
+        -- Hover border
+        fw.MouseEnter:Connect(function()
+            TweenService:Create(fw_stroke, TweenInfo.new(0.15), { Color = library.theme.accent }):Play()
+        end)
+        fw.MouseLeave:Connect(function()
+            TweenService:Create(fw_stroke, TweenInfo.new(0.2), { Color = library.theme.border }):Play()
+        end)
+
+        -- Zone preview
         local content = library:create("Frame", {
-            Size = UDim2.new(1, -8, 1, -28),
-            Position = UDim2.new(0, 4, 0, 24),
+            Name = "Content",
+            Size = UDim2.new(1, -8, 1, -36),
+            Position = UDim2.new(0, 4, 0, 32),
             BackgroundTransparency = 1,
+            ZIndex = 46,
             Parent = fw,
         })
 
+        -- Animation d'entrée
+        fw.BackgroundTransparency = 1
+        fw.Position = UDim2.new(default_pos.X.Scale, default_pos.X.Offset, default_pos.Y.Scale, default_pos.Y.Offset - 12)
+        TweenService:Create(fw, TweenInfo.new(0.28, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+            BackgroundTransparency = 0,
+            Position = default_pos
+        }):Play()
+
         local preview = library:BuildESPPreview(content, options)
         preview.window = fw
-        preview.close = function() fw:Destroy() end
+        preview.close  = function() fw:Destroy() end
         return preview
     end
 
@@ -5097,72 +5195,38 @@ function library:window(cfg)
                 end
 
                 -- =====================================================================
-                -- ESP PREVIEW
+                -- ESP PREVIEW — toujours flottant hors du menu
                 -- =====================================================================
                 function section_obj:ESPPreview(options)
                     options = options or {}
-                    if options.floating or options.detached then
-                        return window_obj:esp_preview(options)
-                    end
 
-                    local esp_obj = library:BuildESPPreview(scroll, options)
+                    -- Créer la fenêtre flottante hors du menu
+                    local preview = window_obj:esp_preview(options)
 
-                    -- ── Barre de boutons Détacher / Rattacher
-                    local btn_row = library:create("Frame", {
-                        Name = "ESPBtnRow",
-                        Size = UDim2.new(1, 0, 0, 22),
-                        BackgroundTransparency = 1,
+                    -- Placeholder dans la section (indique que le preview est dehors)
+                    local ph = library:create("Frame", {
+                        Name = "ESPPlaceholder",
+                        Size = UDim2.new(1, 0, 0, 32),
+                        BackgroundColor3 = Color3.fromRGB(14, 11, 22),
+                        BorderSizePixel = 0,
                         Parent = scroll,
                     })
-                    library:create("UIListLayout", {
-                        FillDirection = Enum.FillDirection.Horizontal,
-                        VerticalAlignment = Enum.VerticalAlignment.Center,
-                        HorizontalAlignment = Enum.HorizontalAlignment.Center,
-                        Padding = UDim.new(0, 6),
-                        Parent = btn_row
+                    make_corner(ph, 5)
+                    make_stroke(ph, library.theme.border_dark, 1)
+                    library:create("TextLabel", {
+                        Size = UDim2.new(1, 0, 1, 0),
+                        BackgroundTransparency = 1,
+                        Font = Enum.Font.SourceSansBold,
+                        RichText = true,
+                        Text = '<font color="#' .. library.theme.accent:ToHex() .. '">> </font><font color="#A0A0B8">ESP Preview — fenêtre flottante</font>',
+                        TextSize = 10,
+                        ZIndex = 2,
+                        Parent = ph,
                     })
 
-                    local function make_esp_btn(label, color, callback)
-                        local btn = library:create("TextButton", {
-                            Name = label .. "Btn",
-                            Size = UDim2.new(0, 88, 0, 18),
-                            BackgroundColor3 = color,
-                            BorderSizePixel = 0,
-                            Text = label,
-                            TextColor3 = Color3.fromRGB(255, 255, 255),
-                            Font = Enum.Font.SourceSansBold,
-                            TextSize = 11,
-                            AutoButtonColor = false,
-                            Parent = btn_row
-                        })
-                        make_corner(btn, 4)
-                        btn.MouseButton1Click:Connect(callback)
-                        -- hover effect
-                        btn.MouseEnter:Connect(function()
-                            TweenService:Create(btn, TweenInfo.new(0.12), {
-                                BackgroundColor3 = Color3.fromRGB(
-                                    math.clamp(math.floor(color.R*255 + 20), 0, 255),
-                                    math.clamp(math.floor(color.G*255 + 20), 0, 255),
-                                    math.clamp(math.floor(color.B*255 + 20), 0, 255)
-                                )
-                            }):Play()
-                        end)
-                        btn.MouseLeave:Connect(function()
-                            TweenService:Create(btn, TweenInfo.new(0.15), { BackgroundColor3 = color }):Play()
-                        end)
-                        return btn
-                    end
-
-                    local accent  = library.theme.accent
-                    local dark    = Color3.fromRGB(38, 34, 55)
-
-                    local detach_btn  = make_esp_btn("[>] Detacher",  accent, function() esp_obj:Detach() end)
-                    local attach_btn  = make_esp_btn("[<] Rattacher", dark,   function() esp_obj:Attach() end)
-
-                    esp_obj.detach_btn = detach_btn
-                    esp_obj.attach_btn = attach_btn
-                    return esp_obj
+                    return preview
                 end
+
                 section_obj.esppreview = section_obj.ESPPreview
                 section_obj.ESP = section_obj.ESPPreview
 
