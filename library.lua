@@ -1685,27 +1685,17 @@ function library:window(cfg)
     })
     make_corner(bg_img, 4)
 
-    -- Top glowing line (accent border)
-    local top_accent = library:create("Frame", {
-        Name = "TopAccent",
-        Size = UDim2.new(1, 0, 0, 2),
-        BackgroundColor3 = self.theme.accent,
-        BorderSizePixel = 0,
-        ZIndex = 10,
-        Parent = main
-    })
-    library:AddToRegistry(top_accent, { BackgroundColor = "AccentColor" })
-
     -- Sidebar (Navigation verticale sur la gauche avec Logo Box en haut)
     local sidebar = library:create("Frame", {
         Name = "Sidebar",
-        Size = UDim2.new(0, 52, 1, -2),
-        Position = UDim2.new(0, 0, 0, 2),
+        Size = UDim2.new(0, 52, 1, 0),
+        Position = UDim2.new(0, 0, 0, 0),
         BackgroundColor3 = Color3.fromRGB(15, 14, 22),
         BorderSizePixel = 0,
         ZIndex = 3,
         Parent = main
     })
+    make_corner(sidebar, 4)
     library:AddToRegistry(sidebar, { BackgroundColor = "BackgroundColor" })
 
     -- Square Logo Box en haut de la Sidebar (comme sur la capture)
@@ -1718,6 +1708,7 @@ function library:window(cfg)
         ZIndex = 4,
         Parent = sidebar
     })
+    make_corner(logo_box, 4)
 
     local function resolve_logo(logo_input)
         local fallback_rbx = "rbxassetid://135215559087473"
