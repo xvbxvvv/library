@@ -4226,12 +4226,11 @@ function library:window(cfg)
                     local dropdown_holder = library:create("Frame", {
                         Name = "DropdownPopup_" .. tostring(flag),
                         Parent = window_obj.screen,
-                        Size = UDim2.new(0, 120, 0, 0), -- Start with 0 height
+                        Size = UDim2.new(0, 120, 0, 100),
                         Visible = false,
                         ZIndex = 500,
                         BorderSizePixel = 0,
                         BackgroundColor3 = Color3.fromRGB(18, 18, 22),
-                        ClipsDescendants = true, -- Always clip
                     })
                     make_corner(dropdown_holder, 4)
                     make_stroke(dropdown_holder, library.theme.border_dark, 1)
@@ -4240,7 +4239,6 @@ function library:window(cfg)
                         Name = "OptionsScroll",
                         Parent = dropdown_holder,
                         Size = UDim2.new(1, 0, 1, 0),
-                        Position = UDim2.new(0, 0, 0, 0),
                         BackgroundTransparency = 1,
                         BorderSizePixel = 0,
                         ScrollBarThickness = 2,
@@ -4248,7 +4246,6 @@ function library:window(cfg)
                         AutomaticCanvasSize = Enum.AutomaticSize.Y,
                         CanvasSize = UDim2.new(0, 0, 0, 0),
                         ZIndex = 501,
-                        ClipsDescendants = true,
                     })
 
                     library:create("UIListLayout", {
@@ -4275,33 +4272,15 @@ function library:window(cfg)
                     local function update_position()
                         local outline_pos = dropdown_outline.AbsolutePosition
                         local outline_size = dropdown_outline.AbsoluteSize
+                        local main_pos = window_obj.main.AbsolutePosition
                         local count = #dropdown_instance.Values
                         local computed_height = math.clamp(count * 20 + 8, 26, 140)
                         local target_width = math.max(outline_size.X, 100)
 
-                        -- Fallback if AbsolutePosition not ready
-                        if outline_pos.X == 0 and outline_pos.Y == 0 then
-                            local main_pos = window_obj.main.AbsolutePosition
-                            local main_size = window_obj.main.AbsoluteSize
-                            outline_pos = Vector2.new(main_pos.X + 60, main_pos.Y + 60)
-                            outline_size = Vector2.new(120, 18)
-                        end
-
-                        -- Keep parent on screen for global ZIndex
                         dropdown_holder.Parent = window_obj.screen
                         dropdown_holder.ZIndex = 500
                         dropdown_holder.AnchorPoint = Vector2.new(0, 0)
-                        
-                        -- Position in screen coordinates (screen has IgnoreGuiInset=true)
-                        local screen_x = outline_pos.X
-                        local screen_y = outline_pos.Y + outline_size.Y + 2
-                        
-                        -- Clamp to screen bounds
-                        local vp = workspace.CurrentCamera and workspace.CurrentCamera.ViewportSize or Vector2.new(1920, 1080)
-                        screen_x = math.clamp(screen_x, 0, math.max(0, vp.X - target_width))
-                        screen_y = math.clamp(screen_y, 0, math.max(0, vp.Y - computed_height))
-                        
-                        dropdown_holder.Position = UDim2.new(0, screen_x, 0, screen_y)
+                        dropdown_holder.Position = UDim2.new(0, outline_pos.X - main_pos.X, 0, (outline_pos.Y - main_pos.Y) + outline_size.Y + 2)
                         return target_width, computed_height
                     end
 
@@ -4319,17 +4298,17 @@ function library:window(cfg)
                             library.ActiveDropdown = dropdown_instance
                             open = true
                             local target_width, computed_height = update_position()
+                            dropdown_holder.ClipsDescendants = true
                             dropdown_holder.Size = UDim2.new(0, target_width, 0, 0)
                             dropdown_holder.Visible = true
-                            dropdown_holder.ZIndex = 500 -- Ensure on top
-                            library:tween(dropdown_holder, { Size = UDim2.new(0, target_width, 0, computed_height) }, Enum.EasingStyle.Quart, 0.15)
-                            library:tween(arrow, { Rotation = 180 }, Enum.EasingStyle.Quad, 0.15)
+                            library:tween(dropdown_holder, { Size = UDim2.new(0, target_width, 0, computed_height) }, Enum.EasingStyle.Quart, 0.2)
+                            library:tween(arrow, { Rotation = 180 }, Enum.EasingStyle.Quad, 0.2)
                             make_stroke(dropdown_outline, library.theme.accent, 1)
                         else
                             open = false
                             make_stroke(dropdown_outline, library.theme.border_dark, 1)
-                            library:tween(arrow, { Rotation = 0 }, Enum.EasingStyle.Quad, 0.1)
-                            local tw = library:tween(dropdown_holder, { Size = UDim2.new(0, dropdown_holder.AbsoluteSize.X, 0, 0) }, Enum.EasingStyle.Quad, 0.1)
+                            library:tween(arrow, { Rotation = 0 }, Enum.EasingStyle.Quad, 0.15)
+                            local tw = library:tween(dropdown_holder, { Size = UDim2.new(0, dropdown_holder.AbsoluteSize.X, 0, 0) }, Enum.EasingStyle.Quad, 0.15)
                             tw.Completed:Connect(function()
                                 if not open then
                                     dropdown_holder.Visible = false
@@ -4382,8 +4361,7 @@ function library:window(cfg)
                                 opt_btn.BackgroundTransparency = 0
                             else
                                 opt_btn.TextColor3 = Color3.fromRGB(180, 180, 185)
-                                opt_btn.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
-                                opt_btn.BackgroundTransparency = 0.85
+                                opt_btn.BackgroundTransparency = 1
                             end
                         end
 
@@ -4419,7 +4397,7 @@ function library:window(cfg)
                                 Parent = options_scroll,
                                 Size = UDim2.new(1, 0, 0, 18),
                                 BackgroundColor3 = Color3.fromRGB(25, 25, 30),
-                                BackgroundTransparency = 0.85, -- Visible but subtle
+                                BackgroundTransparency = 1,
                                 TextXAlignment = Enum.TextXAlignment.Left,
                                 BorderSizePixel = 0,
                                 TextSize = 11,
@@ -4432,7 +4410,7 @@ function library:window(cfg)
                             table.insert(option_instances, opt_btn)
 
                             opt_btn.MouseEnter:Connect(function()
-                                opt_btn.BackgroundTransparency = 0.3
+                                opt_btn.BackgroundTransparency = 0.4
                                 opt_btn.TextColor3 = Color3.fromRGB(255, 255, 255)
                             end)
                             opt_btn.MouseLeave:Connect(function()
@@ -4443,7 +4421,7 @@ function library:window(cfg)
                                     opt_btn.BackgroundTransparency = 0
                                 else
                                     opt_btn.TextColor3 = Color3.fromRGB(180, 180, 185)
-                                    opt_btn.BackgroundTransparency = 0.85
+                                    opt_btn.BackgroundTransparency = 1
                                 end
                             end)
 
