@@ -216,9 +216,10 @@ local function make_stroke(instance, color, thickness)
     return stroke
 end
 
-local function make_draggable(frame)
+local function make_draggable(frame, drag_handle)
+    local handle = drag_handle or frame
     local dragging, dragStart, startPos = false, nil, nil
-    frame.InputBegan:Connect(function(input)
+    handle.InputBegan:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
             dragging = true
             dragStart = input.Position
@@ -825,6 +826,57 @@ function library:BuildESPPreview(parent, options)
         return model
     end
 
+    local center = Vector3.new(0, 2.5, 0)
+    local dist = 8
+    local current_yaw = 0
+    local current_pitch = 0
+
+    local function update_cam_transform()
+        if not view_cam or not center then return end
+        local cam_cf = CFrame.new(center)
+            * CFrame.Angles(0, current_yaw, 0)
+            * CFrame.Angles(current_pitch, 0, 0)
+            * CFrame.new(0, 0, -dist)
+        view_cam.CFrame = CFrame.lookAt(cam_cf.Position, center)
+    end
+
+    local is_dragging_rot = false
+    local last_rot_pos = nil
+    local last_click_time = 0
+
+    holder.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            local now = tick()
+            if now - last_click_time < 0.28 then
+                current_yaw = 0
+                current_pitch = 0
+                update_cam_transform()
+                is_dragging_rot = false
+                return
+            end
+            last_click_time = now
+            is_dragging_rot = true
+            last_rot_pos = input.Position
+        end
+    end)
+
+    holder.InputChanged:Connect(function(input)
+        if (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) and is_dragging_rot and last_rot_pos then
+            local delta = input.Position - last_rot_pos
+            last_rot_pos = input.Position
+            current_yaw = current_yaw + (delta.X * 0.018)
+            current_pitch = math.clamp(current_pitch - (delta.Y * 0.01), math.rad(-30), math.rad(30))
+            update_cam_transform()
+        end
+    end)
+
+    UserInputService.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            is_dragging_rot = false
+            last_rot_pos = nil
+        end
+    end)
+
     local function render()
         clear_view()
         local clone = nil
@@ -862,12 +914,16 @@ function library:BuildESPPreview(parent, options)
         end
 
         clone.Parent = world
-        local cf, size = clone:GetBoundingBox()
-        local center = cf.Position
-        local max_dim = math.max(size.X, size.Y, size.Z)
-        local dist = max_dim / (2 * math.tan(math.rad(view_cam.FieldOfView / 2))) * 1.05
+        clone.PrimaryPart = root
+        -- Réinitialiser la CFrame du clone pour qu'il soit parfaitement droit et orienté vers l'avant (de face)
+        clone:PivotTo(CFrame.new(0, 0, 0))
 
-        view_cam.CFrame = CFrame.new(center + Vector3.new(0, 0, dist), center)
+        local cf, size = clone:GetBoundingBox()
+        center = cf.Position
+        local max_dim = math.max(size.X, size.Y, size.Z)
+        dist = max_dim / (2 * math.tan(math.rad(view_cam.FieldOfView / 2))) * 1.08
+
+        update_cam_transform()
 
         if show_skel then
             local is_r15 = clone:FindFirstChild("UpperTorso") ~= nil
@@ -926,8 +982,17 @@ function library:BuildESPPreview(parent, options)
         set_color = function(c) esp_color = c; box_stroke.Color = c; render() end,
         set_health_percent = function(p)
             health_fill.Size = UDim2.new(math.clamp(p, 0, 1), 0, 1, 0)
-        end,
         refresh = render,
+        reset_rotation = function()
+            current_yaw = 0
+            current_pitch = 0
+            update_cam_transform()
+        end,
+        set_rotation = function(yaw, pitch)
+            current_yaw = yaw or 0
+            current_pitch = pitch or 0
+            update_cam_transform()
+        end,
     }
 end
 
@@ -2697,7 +2762,6 @@ function library:window(cfg)
         })
         make_corner(fw, 3)
         make_stroke(fw, library.theme.border, 1)
-        make_draggable(fw)
 
         local header = library:create("Frame", {
             Size = UDim2.new(1, 0, 0, 20),
@@ -2706,6 +2770,7 @@ function library:window(cfg)
             Parent = fw,
         })
         make_corner(header, 3)
+        make_draggable(fw, header)
 
         library:create("TextLabel", {
             Size = UDim2.new(1, -8, 1, 0),
